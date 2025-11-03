@@ -2,6 +2,9 @@
 
 snu-ece-bsc-thesis 클래스는 서울대학교 전기정보공학부 학사학위논문 양식을 LaTeX으로 작성하기 위한 클래스입니다.
 
+- 컴퓨터공학부 학사학위논문 양식은 [snu-cse-bsc-thesis](https://github.com/Zeta611/snu-cse-bsc-thesis) 클래스를 확인하세요.
+- 컴퓨터공학부 석사학위논문 양식은 [snu-cse-ms-thesis](https://github.com/Zeta611/snu-cse-ms-thesis) 클래스를 확인하세요.
+
 `ko` 및 `en` 옵션으로 한국어와 영어 논문을 둘 다 지원합니다.
 
 ## 사용법
@@ -29,7 +32,7 @@ xelatex example-ko
 
 ## 저자
 
-* 이재호 [jaeho.lee@snu.ac.kr](jaeho.lee@snu.ac.kr)
+- 이재호 [jaeho.lee@snu.ac.kr](jaeho.lee@snu.ac.kr)
 
 ## 라이선스
 
