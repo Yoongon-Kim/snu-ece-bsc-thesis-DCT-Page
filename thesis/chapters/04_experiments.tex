@@ -156,9 +156,10 @@ at short context length.
 \paragraph{Throughput measurement.}
 For each $(L, \text{batch})$ cell with $L \in \{8, 16, 32, 64, 128\}\text{K}$
 tokens and batch sizes $\{1, 2\}$, the profiler runs $8$ warm-up
-steps followed by $128$ timed decode steps inside the captured CUDA
-graph.
-Per-step CUDA-event timings are accumulated and reported as two
+replays followed by $128$ timed decode-step replays of the captured
+CUDA graph, bracketed by a pair of CUDA events that span the entire
+timed loop.  Per-step wall-clock latency is the elapsed time of this
+bracket divided by the number of replays, and is reported as two
 quantities: (i)~\emph{attention-only} latency (the time spent inside
 the attention sub-module, including scoring/selection for DCT-Page),
 and (ii)~\emph{end-to-end} per-step latency (the same chain extended
@@ -168,27 +169,39 @@ of the Full-KV latency to the DCT-Page latency at the same
 $(L, \text{batch})$.
 
 \paragraph{Per-stage breakdown.}
-Within the same profiler, a chain of CUDA events is placed between
-the adjacent stages of the decode forward: QKV projection, proxy
-update, scoring, the fused top-$k$ selection / KV assembly kernel,
-the attention kernel itself, and the output projection.  Because the
-events are chained end-to-end, the sum of the inter-event elapsed
-times exactly equals the full decode-step wall clock.
-The QKV projection and the output projection are identical between
-Full-KV and DCT-Page --- they operate on the query/output token alone
-and do not depend on the KV-selection strategy --- so we exclude them
-from the comparison reported in Section~\ref{sec:results-speed}.
-The reported attention-time budget is therefore
+Recording CUDA events between substeps inside the captured graph is
+not supported on the torch + CUDA build used in this thesis (event
+records issued during graph capture either error out or fail to
+produce timings on replay), so the per-stage breakdown of
+Section~\ref{sec:results-speed} is collected through the kernel-level
+path instead.  Concretely, the same timed replay loop is wrapped in a
+\texttt{torch.profiler} session that captures CUPTI kernel activity;
+each kernel launched inside one replay window is then bucketed by
+its kernel name into one of the eight decode substeps --- QKV
+projection, RoPE + cache append, page-region view (a stride-only
+operation, no kernel), proxy update, page scoring, fused
+top-$k$/KV-assembly, the upstream FlashInfer attention kernel, and
+the output projection.  The bucketing dictionary is anchored to
+specific kernel symbols emitted by FlashInfer, the DCT-Page Triton
+kernels, and the upstream paged-attention primitive; a residual
+``all-kernel reconciliation'' check ensures that the sum of bucketed
+times agrees with the total CUPTI activity to within sub-millisecond
+tolerance, so unbucketed kernels (typically a renamed cuBLASLt
+symbol) cannot silently disappear from the table.
+
+For Full-KV the same bucketing collapses to four populated substeps
+(QKV, RoPE + cache append, FlashInfer attention, output projection);
+all other DCT-Page substeps are structurally absent.  In both modes,
+QKV projection and the output projection operate on the single query
+token and are identical across the two paths, so the reported
+attention-time budget is the sum of the remaining substeps:
 \begin{equation*}
   t_\text{Full-KV}^{\text{attn}}
   \;\;\text{vs.}\;\;
   t_\text{DCT-Page}^{\text{proxy}}
   + t_\text{DCT-Page}^{\text{score}}
   + t_\text{DCT-Page}^{\text{topk+assemble}}
-  + t_\text{DCT-Page}^{\text{attn}},
+  + t_\text{DCT-Page}^{\text{attn}}.
 \end{equation*}
-i.e.\ the Full-KV attention kernel time against the sum of DCT-Page's
-proxy update, scoring, fused top-$k$/KV-assembly, and attention
-kernel times.  Reporting the comparison as a sum keeps the overhead
-of DCT-Page's bookkeeping kernels charged against its measured
-speedup.
+Reporting the comparison as a sum keeps the overhead of DCT-Page's
+bookkeeping kernels charged against its measured speedup.

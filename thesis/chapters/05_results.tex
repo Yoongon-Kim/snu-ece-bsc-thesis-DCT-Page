@@ -1,16 +1,5 @@
 \chapter{Results}\label{chap:results}
 
-This chapter reports the empirical results of DCT-Page on the
-benchmarks and protocol of Chapter~\ref{chap:setup}.
-Section~\ref{sec:results-ruler} and Section~\ref{sec:results-longbench}
-compare DCT-Page against page-based sparse-attention baselines on
-long-context accuracy; Section~\ref{sec:results-speed} reports decode
-throughput and a per-stage attribution of the speedup;
-Section~\ref{sec:results-multipole} examines the accuracy--throughput
-trade-off against the cluster-based Multipole Attention baseline; and
-Section~\ref{sec:ablations} sweeps the four DCT-Page hyperparameters
-that most affect accuracy and throughput.
-
 
 % =====================================================================
 \section{Long-Context Accuracy: RULER}\label{sec:results-ruler}
@@ -242,10 +231,12 @@ trade-off can be read directly.
    is reported as overall accuracy.  Decode throughput is the tokens
    per second at $L = 32{,}768$, batch 1.  Multipole's per-step
    computation is data-dependent (clusters are re-formed during
-   generation) and cannot be captured into a CUDA graph, so for
-   apples-to-apples comparison both methods are measured in eager
-   mode here.  The CUDA-graph throughput of DCT-Page is reported
-   in Section~\ref{sec:results-speed}.}
+   generation and selected clusters are scattered in memory); the
+   CUDA-graph wrapper required to capture this irregular control- and
+   memory-access pattern was beyond the scope of our implementation,
+   so for an apples-to-apples comparison both methods are measured in
+   eager mode here.  The CUDA-graph throughput of DCT-Page is
+   reported in Section~\ref{sec:results-speed}.}
   \label{tab:multipole}
   \footnotesize
   \setlength{\tabcolsep}{5pt}

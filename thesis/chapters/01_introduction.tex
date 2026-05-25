@@ -35,8 +35,10 @@ per-page summary statistics are: Quest's per-channel min/max, for
 example, discards intra-page structure and collapses on the longest
 LongBench~v2 context bucket.  Cluster-based selection achieves higher
 accuracy on synthetic benchmarks but its data-dependent decode path
-cannot be CUDA-graph captured and is multiples slower than the
-page-based alternatives at the same selected-token budget.
+incurs irregular memory accesses --- centroids are recomputed during
+generation and selected clusters are scattered across the cache ---
+and is multiples slower than the page-based alternatives at the same
+selected-token budget.
 
 This thesis asks whether a single, training-free choice of per-page
 summary --- one that captures intra-page structure but is cheap
@@ -94,67 +96,40 @@ This thesis makes four contributions:
 \begin{enumerate}
   \item \textbf{A training-free, frequency-domain page proxy.}
     Section~\ref{sec:proxy} introduces the DCT-lowpass-IDCT
-    projection used as a page summary, characterizes its per-step
-    update cost ($O(P \cdot C \cdot d)$ per closed page,
-    $O(C \cdot d)$ amortized per decode step), and identifies $C{=}4$
-    --- four retained DCT coefficients per $32$-token page --- as the
-    operating point at which the proxy already captures the bulk of
-    the page energy.  No weights are added to the model and no
-    fine-tuning is required.
-  \item \textbf{A fused decode pipeline on top of upstream
-    FlashInfer.}  Section~\ref{sec:kernels} composes DCT-Page's
-    scoring and selection as three custom GPU kernels (proxy update,
-    page scoring, fused top-$k$/KV-assembly) that feed
-    per-(batch, kv-head) page indices into the upstream paged
-    attention primitive of FlashInfer~\cite{ye2025flashinfer} via a
-    virtual-batching scheme.  The entire decode loop is CUDA-graph
-    capturable.
-  \item \textbf{A comprehensive empirical evaluation.}
-    Chapter~\ref{chap:results} reports DCT-Page on RULER, LongBench
-    v1, and LongBench v2 with Llama-3.1-8B-Instruct and Qwen3-8B,
-    against three page-based baselines (Quest, SeerAttention-R,
-    InfLLM) and a separate Pareto comparison against the
-    cluster-based Multipole.  DCT-Page leads every page-based
-    baseline on RULER (by $+5.16$ and $+6.40$ points on Llama and
-    Qwen3 respectively), stays within $0.07$ points of Full-KV on
-    LongBench v1, and is the only sparse-attention method whose
-    selection does not collapse on the longest LongBench v2 context
-    bucket.  On a single A6000 GPU at $128$K context, DCT-Page is
-    $5.65\times$ faster than Full-KV in the attention kernel and
-    $1.70\times$ faster end-to-end.
-  \item \textbf{An attention-mass-recall analysis pinning down why
-    DCT-Page works.}  Section~\ref{sec:mass-recall} measures, on
-    dense reference traces, the fraction of softmax mass that each
-    sparse method's page selection covers.  At the same per-step
-    budget, DCT-Page covers $84.6\%$ of the dense mass against
-    Quest's $62.9\%$, and this $21.7$-point gap explains the
-    downstream accuracy difference quantitatively.  The same
-    analysis exposes a structural failure mode of Quest's
-    per-channel min/max scorer that is consistent with the
-    catastrophic accuracy drop we observe at very long context.
+    projection used as a page summary: each closed page is replaced
+    by a short sequence of representative tokens obtained from a
+    single precomputed linear map that depends only on the page size
+    and the proxy length.  No model weights are added, no
+    fine-tuning is required, and the same projection applies
+    unchanged across models, layers, and heads.
+  \item \textbf{Page-based throughput at cluster-grade accuracy.}
+    By encoding the intra-page key distribution rather than
+    collapsing it to per-channel min/max, DCT-Page closes most of
+    the accuracy gap that page-based methods have historically paid
+    for their hardware-friendliness --- while keeping their fixed,
+    contiguous decode-time memory layout.  In particular, DCT-Page
+    is the only page-based method in our evaluation whose accuracy
+    does not collapse on the longest LongBench~v2 context bucket.
+  \item \textbf{A hardware-friendly decode integration.}
+    Section~\ref{sec:kernels} composes the proxy update, page
+    scoring, and top-$k$/KV-assembly stages as three fused GPU
+    kernels on top of upstream FlashInfer's paged-attention
+    primitive~\cite{ye2025flashinfer}, using a virtual-batching
+    scheme to feed per-(batch, kv-head) page indices into the
+    unmodified upstream kernel.  The entire decode loop --- scoring,
+    selection, and attention --- is CUDA-graph capturable, so
+    DCT-Page inherits production-grade paged-attention throughput
+    rather than competing with it.
+  \item \textbf{A principled account of why frequency-domain
+    summaries suffice.}  The structural observation that drives
+    DCT-Page --- $\approx 85\%$ of per-page key energy in the first
+    four of thirty-two DCT bins --- is sharpened in
+    Section~\ref{sec:mass-recall} into an attention-mass-recall
+    measurement on dense reference traces, which connects the
+    spectral concentration of keys to the softmax mass actually
+    recovered at decode time.  The same lens explains, mechanistically
+    rather than empirically, where page-based scorers without
+    intra-page resolution break down.
 \end{enumerate}
 
 
-% =====================================================================
-\section{Thesis Organization}\label{sec:organization}
-% =====================================================================
-
-Chapter~\ref{chap:background} establishes the technical context: the
-KV-cache--bandwidth bottleneck, the four baseline methods that
-DCT-Page is compared against, and the discrete-cosine-transform
-background needed to follow the proxy construction.
-Chapter~\ref{chap:method} introduces DCT-Page itself --- the
-decode-time page layout, the low-frequency insight that motivates the
-proxy, the proxy construction and its incremental update, the
-scoring and top-$k$ selection rules, and the FlashInfer-integrated
-decode pipeline.
-Chapter~\ref{chap:setup} fixes the models, benchmarks, baselines, and
-speed-measurement protocol.
-Chapter~\ref{chap:results} reports the empirical results on long-context
-accuracy, decode throughput, the Multipole accuracy--throughput
-trade-off, and the four hyperparameter ablations.
-Chapter~\ref{chap:analysis} reads those results through the lens of
-attention-mass recall, identifies the task families on which DCT-Page
-wins or lags, and catalogues the system's limitations.
-Chapter~\ref{chap:conclusion} concludes with a brief recap and a
-discussion of future directions.

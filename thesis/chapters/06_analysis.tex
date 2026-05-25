@@ -1,21 +1,5 @@
 \chapter{Analysis}\label{chap:analysis}
 
-The previous chapter reported what DCT-Page achieves; this chapter
-asks \emph{why}.  Section~\ref{sec:mass-recall} traces the accuracy
-advantage to a single intermediate quantity, the fraction of the dense
-softmax mass that the selected pages cover, and shows that the
-DCT-lowpass-IDCT proxy of Section~\ref{sec:proxy} recovers far more of
-this mass than the per-channel min/max statistics used by Quest.
-Section~\ref{sec:task-level} then reads the per-task tables of
-Chapter~\ref{chap:results} through this lens, separating the
-retrieval-style tasks where mass-recall is the binding constraint
-from the aggregation tasks where it is not, and discussing two
-phenomena that the headline averages partly hide: Quest's collapse on
-the longest LongBench~v2 context bucket, and a small but consistent
-sparse-beats-dense gap on LongBench~v2 overall accuracy.
-Section~\ref{sec:limitations} closes with an honest catalogue of what
-DCT-Page does not address.
-
 
 % =====================================================================
 \section{Why DCT-Page Works: Attention-Mass Recall}\label{sec:mass-recall}
@@ -57,14 +41,15 @@ Full-KV decode mode on a RULER NIAH-MultiKey~3 trace at $L = 32{,}768$
 and Llama-3.1-8B-Instruct, observing the dense attention weights at
 every layer and step, and asking each scorer --- DCT-Page's
 DCT-lowpass-IDCT proxy and Quest's per-channel min/max statistics ---
-to produce a page set $\mathcal{T}$ of the same size $|\mathcal{T}| =
-B = 64$ pages.  Equation~\eqref{eq:mass-recall} is then evaluated on
-the dense weights.  The DCT-Page curve is reported as a function of
-the proxy length $C \in \{1, 2, 4, 8, 16, 32\}$ from
-Section~\ref{sec:proxy}; the Quest scorer has no analogous knob and
-appears as a single horizontal line.  Figure~\ref{fig:mass-recall}
-plots the per-layer mean and across-layer $\pm 1\sigma$ band for each
-scorer, together with the trivial $m \equiv 1$ ceiling.
+to produce a page set $\mathcal{T}$ at the same selected-token budget
+$B \cdot P = 2{,}048$.  Equation~\eqref{eq:mass-recall} is then
+evaluated on the dense weights.  Figure~\ref{fig:mass-recall} reports
+the result at $P = 16$, $B = 128$, sweeping the DCT-proxy length
+$c \in \{1, 2, \dots, 16\}$ for the DCT-Page scorer; Quest's
+per-channel min/max scorer has no analogous knob and appears as a
+single horizontal line.  The figure plots the per-layer mean and
+across-layer $\pm 1\sigma$ band for each scorer, together with the
+trivial $m \equiv 1$ ceiling.
 
 \begin{figure}[ht]
   \centering
@@ -72,30 +57,38 @@ scorer, together with the trivial $m \equiv 1$ ceiling.
   \caption[Paged attention-mass recall vs.\ DCT-lowpass cutoff.]
   {Paged attention-mass recall (Eq.~\eqref{eq:mass-recall}) on a
   RULER NIAH-MultiKey~3 trace at $L = 32{,}768$ with
-  Llama-3.1-8B-Instruct, page size $P{=}32$, budget $B{=}64$ pages.
-  The DCT-lowpass-IDCT proxy of Section~\ref{sec:proxy} (blue)
-  routes $\approx 85\%$ of the dense softmax mass to its selected
-  pages already at $C{=}4$, with no further gain from increasing
-  $C$; the per-channel min/max scorer of Quest (orange) covers only
-  $62.9\%$ of the mass at the same budget.  Shaded bands are
-  $\pm 1\sigma$ across transformer layers.}
+  Llama-3.1-8B-Instruct, page size $P{=}16$, selected-token budget
+  $B \cdot P = 2{,}048$.  The DCT-lowpass-IDCT proxy of
+  Section~\ref{sec:proxy} (blue) already routes $\approx 84\%$ of
+  the dense softmax mass to its selected pages at the most
+  aggressive setting $c{=}1$ (one proxy token per $16$ keys), and
+  the curve climbs gently to $\approx 90\%$ at $c{=}16$ before
+  saturating; the per-channel min/max scorer of Quest (orange)
+  covers only $65.6\%$ of the mass at the same selected-token
+  budget, regardless of $c$.  Shaded bands are $\pm 1\sigma$ across
+  transformer layers.}
   \label{fig:mass-recall}
 \end{figure}
 
 \paragraph{Quantitative comparison.}
-At the default DCT-Page configuration of Section~\ref{sec:config}
-($C{=}4$, i.e.\ $C/P = 1/8$), the DCT-lowpass-IDCT proxy attains a
-paged mass-recall of $84.6\%$ averaged across layers, while Quest's
-per-channel min/max statistics cover only $62.9\%$ of the dense
-softmax mass at the same per-step budget.  This is a $21.7$-point gap
-in the only intermediate quantity that connects scorer geometry to
-downstream attention error.  The DCT-Page curve is also remarkably
-flat in $C$: doubling the proxy length from $4$ to $32$ buys less than
-two points of additional mass-recall, which is consistent with the
-spectral concentration documented in Section~\ref{sec:insight} ---
-the energetic structure of a page already lives in its first few DCT
-bins, and additional bins mostly fit noise.  The flatness in turn
-justifies the choice $C{=}4$ as the operating point: it minimizes
+At the most aggressive compression setting visible in
+Figure~\ref{fig:mass-recall} --- one proxy token per $16$-key page,
+i.e.\ a $1/16$ compression ratio --- the DCT-lowpass-IDCT proxy
+already attains a paged mass-recall of $\approx 84\%$ averaged across
+layers, while Quest's per-channel min/max statistics cover only
+$65.6\%$ of the dense softmax mass at the same selected-token budget.
+This is an $\approx 18$-point gap in the only intermediate quantity
+that connects scorer geometry to downstream attention error, and it
+holds before DCT-Page is given any of its bin-budget headroom: as $c$
+grows toward $P$, the DCT curve climbs to $\approx 90\%$, widening
+the gap to Quest by another $\approx 6$ points while Quest's line
+does not move.  The DCT-Page curve is also remarkably flat once it
+clears its first few bins, consistent with the spectral concentration
+documented in Section~\ref{sec:insight} --- the energetic structure
+of a page already lives in its first few DCT bins, and additional
+bins mostly fit noise.  The flatness justifies operating at small $c$
+in production (we use the equivalent $C/P = 1/8$ at $P{=}32$ for the
+default configuration of Section~\ref{sec:config}): it minimizes
 proxy-cache footprint and per-page compression cost without giving up
 recall.
 
@@ -103,16 +96,16 @@ recall.
 The sparse attention output is a softmax-weighted sum of values, so its
 deviation from Full-KV at a single step is upper-bounded by the
 softmax mass that the scorer routed \emph{away}, $1 - m(\mathcal{T})$.
-DCT-Page misses $\approx 15\%$ of that mass at $C{=}4$; Quest misses
-$\approx 37\%$.  This gap is not academic: it is the mechanism behind
+DCT-Page misses $\approx 16\%$ of that mass at $c{=}1$; Quest misses
+$\approx 34\%$.  This gap is not academic: it is the mechanism behind
 the $+5.16$ and $+6.40$-point RULER averages of DCT-Page over Quest
 on Llama and Qwen3 reported in Table~\ref{tab:ruler}.  In particular,
 the largest per-task gap --- NIAH-MultiKey~3, where DCT-Page reaches
 $92.00$ on Llama versus Quest's $32.00$, and $72.00$ on Qwen3 versus
 Quest's $8.00$ --- is exactly the task whose dense softmax is the most
 concentrated on a single page (the needle's page).  When the dense
-distribution is concentrated, missing $37\%$ of its mass is much more
-likely to also miss the needle page entirely than missing $15\%$,
+distribution is concentrated, missing $34\%$ of its mass is much more
+likely to also miss the needle page entirely than missing $16\%$,
 which is precisely what the per-task numbers show.
 
 

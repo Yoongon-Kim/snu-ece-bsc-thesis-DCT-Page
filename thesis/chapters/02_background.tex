@@ -1,19 +1,5 @@
 \chapter{Background and Related Work}\label{chap:background}
 
-This chapter establishes the technical context for the rest of the
-thesis.  Section~\ref{sec:kv-bottleneck} recalls the standard
-decoder-transformer attention mechanism and identifies the
-KV-cache--bandwidth bottleneck that motivates sparse decoding.
-Section~\ref{sec:related-sparse} surveys four representative sparse
-or compressed KV-attention methods that DCT-Page is compared against
-in Chapter~\ref{chap:results}, organizing them by the structural
-choice that distinguishes each one from a dense baseline.
-Section~\ref{sec:related-freq} reviews the discrete cosine transform
-in the specific role DCT-Page uses it for, namely as a low-rank
-projection of a key-vector sequence, and discusses the small set of
-contemporary works that also exploit frequency-domain compression
-in long-context LLMs.
-
 
 % =====================================================================
 \section{Autoregressive Decoding and the KV-Cache Bottleneck}\label{sec:kv-bottleneck}
@@ -55,12 +41,20 @@ dense softmax in Eq.~\eqref{eq:attn} concentrates most of its mass
 on a small subset of past tokens; the rest contributes negligible
 energy and could in principle be skipped without changing the output.
 Second, prefill --- the one-pass attention over the prompt that
-populates the cache --- is compute-bound rather than memory-bound, so
-modifying it offers little speedup.  Sparse-attention systems
-therefore typically leave prefill unchanged and intervene only at
-decode time, replacing the full read of $K_{\le t}, V_{\le t}$ with
-some compressed or filtered surrogate.  DCT-Page belongs to this
-family.
+populates the cache --- is compute-bound rather than memory-bound.
+Concretely, prefill on an $L$-token prompt computes a $Q[L \times d]
+\cdot K^{\top}[d \times L]$ matrix--matrix product (arithmetic
+intensity $O(L)$ FLOP per byte loaded), whereas decode computes a
+$q[1 \times d] \cdot K^{\top}[d \times L]$ matrix--vector product
+(arithmetic intensity $O(1)$, independent of $L$).  For any $L$ on
+the order of a thousand or more, prefill's intensity sits above the
+$\approx 200$--$400$~FLOP/byte ridge of modern GPUs (e.g.\ the A6000
+used in this thesis) while decode sits far below it; prefill is
+therefore in the compute-bound regime and modifying it offers little
+speedup, while decode is squarely memory-bound.  Sparse-attention
+systems --- DCT-Page included --- therefore typically leave prefill
+unchanged and intervene only at decode time, replacing the full read
+of $K_{\le t}, V_{\le t}$ with some compressed or filtered surrogate.
 
 
 % =====================================================================
@@ -79,12 +73,17 @@ sits in the cluster-based paradigm and is discussed last.
 Quest~\cite{tang2024quest} partitions the KV cache into fixed-size
 pages and, for each page, stores a pair of per-channel summary
 statistics: the elementwise minimum and maximum of the keys inside
-the page.  At decode time the query is scored against every page by
-an \emph{approximate-max inner product}: for each channel, the
-contribution to the score is the larger of $q[c] \cdot \min_p[c]$ and
-$q[c] \cdot \max_p[c]$, summed across channels.  This is a cheap and
-position-agnostic upper bound on the maximum inner product the query
-could have with any key inside the page.  Quest then attends to the
+the page.  At decode time the query is scored against every page by an
+\emph{approximate-max inner product}.  For each channel
+$c \in \{1, \dots, d\}$, the per-channel contribution is taken to be
+the larger of $q[c] \cdot \min_p[c]$ and $q[c] \cdot \max_p[c]$ ---
+since the true key value $k[c]$ for any token inside the page lies in
+$[\min_p[c], \max_p[c]]$, this is a tight upper bound on
+$q[c] \cdot k[c]$ that requires only the per-channel sign of $q[c]$.
+The page score is the sum of these per-channel upper bounds across
+the $d$ channels, which is itself an upper bound on
+$\max_{k \in \text{page}} q^{\top} k$.  This bound is cheap (two
+scalars per channel) and position-agnostic.  Quest then attends to the
 top-$k$ pages by this score and ignores the rest.
 
 The per-page metadata is small --- two scalars per channel rather
@@ -157,9 +156,12 @@ Empirically this yields the highest long-context accuracy among the
 methods we evaluate (Section~\ref{sec:results-multipole}).  Its
 weakness is that clusters are \emph{data-dependent and recomputed
 during generation}: the centroids must be re-estimated as the KV
-cache grows, which means the per-step computation cannot be captured
-into a CUDA graph and the decode-time wall clock is substantially
-slower than the page-based methods at the same selected-token budget.
+cache grows, and the keys belonging to a selected cluster are
+scattered (non-contiguous) in memory.  The per-step computation
+therefore has an irregular memory-access pattern that does not
+amortize across decode steps the way a fixed page layout does, and
+the decode-time wall clock is substantially slower than the
+page-based methods at the same selected-token budget.
 This is the source of the accuracy--throughput Pareto trade-off that
 Section~\ref{sec:results-multipole} reports in detail.
 
