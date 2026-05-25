@@ -1,0 +1,69 @@
+\documentclass[en]{snu-ece-bsc-thesis}
+
+% --- Math / units / graphics ----------------------------------------
+\usepackage{siunitx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\usepackage{tikz}
+\usetikzlibrary{positioning, fit, arrows.meta, calc, decorations.pathreplacing}
+
+% --- Bibliography ---------------------------------------------------
+\addbibresource{bib.bib}
+
+% --- hyperref MUST be loaded last -----------------------------------
+\usepackage[pdfusetitle]{hyperref}
+
+% =====================================================================
+% Document metadata
+% =====================================================================
+\title{DCT-Page: Frequency-Domain Page Proxies for\\Sparse KV Decoding}
+\author{김윤곤}
+\advisor{김재준}
+\date{2026년 12월}                    % TODO: confirm submission month
+\approvaldate{2026년 12월}             % TODO: confirm approval month
+
+\koreankeywords{장문맥 언어모델, 희소 어텐션, KV 캐시,
+                이산 코사인 변환, 페이지 어텐션}
+\englishkeywords{Long-context Language Model, Sparse Attention, KV Cache,
+                 Discrete Cosine Transform, Page Attention}
+
+% =====================================================================
+\begin{document}
+\maketitle
+
+% --- Front matter ---------------------------------------------------
+\pagenumbering{roman}
+
+\begin{abstract}
+% TODO: write after the rest of the thesis is drafted.
+% Target length: ~250-300 words.
+% Cover (1) problem, (2) insight, (3) method, (4) headline results, (5) impact.
+\end{abstract}
+
+\tableofcontents
+\listoftables
+\listoffigures
+
+% --- Body -----------------------------------------------------------
+\pagenumbering{arabic}
+
+\include{chapters/01_introduction}
+\include{chapters/02_background}
+\include{chapters/03_method}
+\include{chapters/04_experiments}
+\include{chapters/05_results}
+\include{chapters/06_analysis}
+\include{chapters/07_conclusion}
+
+% --- Bibliography ---------------------------------------------------
+\printbibliography[heading=bibintoc]
+
+% --- Korean abstract appendix --------------------------------------
+\begin{abstract}[ko]
+% TODO: 본문 영문 초록을 한국어로 번역.
+\end{abstract}
+
+\end{document}

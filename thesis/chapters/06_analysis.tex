@@ -1,0 +1,31 @@
+\chapter{Analysis}\label{chap:analysis}
+
+% Target length: ~3-5 pages. The "why DCT-Page works" chapter.
+
+
+\section{Attention-Mass Recall vs. Selector}\label{sec:mass-recall}
+% TODO: dense-trajectory measurement from
+% oracle/attention_mass_recall_ruler.py.
+%   - DCT-Page paged mass recall: 84.6%
+%   - Quest: 62.9%
+%   - Approaches the oracle ceiling.
+% Plot: mass-recall vs lowpass cutoff (poster Fig. 2).
+
+
+\section{Scoring-Method Comparison Against Oracle}\label{sec:scoring-compare}
+% TODO: summary of oracle/diagnose_scoring_methods.py results.
+% Ground truths: oracle_max, output_contribution.
+% Show that DCT-lowpass-IDCT proxy approaches oracle scoring.
+
+
+\section{Oracle Upper-Bound at Fixed Token Budget}\label{sec:oracle-bound}
+% TODO: oracle/run_ruler_oracle_selection.py sweep.
+% Fix selected-token budget (2048), vary page_size in {32, 64, 128}.
+
+
+\section{Limitations}\label{sec:limitations}
+% TODO: be honest.
+%   - Qwen3 Full-KV gap on hard RULER tasks.
+%   - Decode-only (prefill unchanged).
+%   - Evaluation limited to 8B-class models.
+%   - Hardware coverage limited to a single GPU class (A6000).

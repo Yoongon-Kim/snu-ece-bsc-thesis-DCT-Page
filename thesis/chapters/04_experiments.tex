@@ -1,0 +1,194 @@
+\chapter{Experimental Setup}\label{chap:setup}
+
+This chapter fixes the models, benchmarks, sparse-attention baselines,
+and speed-measurement protocol used throughout
+Chapter~\ref{chap:results} and Chapter~\ref{chap:analysis}.
+
+
+\section{Models}\label{sec:models}
+
+All experiments use two open-weight, decoder-only language models at
+the $\approx$8B-parameter scale: Llama-3.1-8B-Instruct
+\cite{grattafiori2024llama3} and Qwen3-8B~\cite{yang2025qwen3}.
+Both use rotary positional embedding (RoPE) and grouped-query
+attention (GQA); Qwen3-8B additionally applies QK-Norm to the query
+and key projections.  All experiments run in \texttt{bfloat16} on a
+single NVIDIA RTX A6000 (48~GiB) unless noted otherwise.
+
+
+\section{Benchmarks}\label{sec:benchmarks}
+
+DCT-Page is evaluated on three long-context benchmark suites.  All
+prompt-formatting follows the chat-template conventions baked into
+each model's tokenizer, with the exceptions documented in
+Section~\ref{sec:bench-longbench}.
+
+\subsection{RULER}\label{sec:bench-ruler}
+
+RULER~\cite{hsieh2024ruler} is a synthetic long-context test suite of
+13 tasks, used here at a default context length of 32K tokens.
+The tasks fall into four families: needle-in-a-haystack retrieval
+(NIAH Single 1--3, NIAH MultiKey 1--3, NIAH MultiValue, NIAH
+MultiQuery), variable tracking (VT), word-frequency extraction
+(Common Words Extraction, Frequent Words Extraction), and
+long-document question answering (QA-1, QA-2).
+Each task is scored by its native exact-match or substring metric.
+
+\subsection{LongBench v1 and v2}\label{sec:bench-longbench}
+
+\paragraph{LongBench v1}~\cite{bai2024longbench} provides a suite of
+English long-context tasks across single-document QA, multi-document
+QA, summarization, and few-shot in-context learning.  We evaluate on
+the six tasks most representative of these categories:
+NarrativeQA, Qasper, MultiFieldQA-en, 2WikiMultihopQA, GovReport, and
+TriviaQA.  Metrics are the official per-task ones (F1 for QA, ROUGE-L
+for summarization, classification accuracy for in-context learning).
+TriviaQA is evaluated without a chat template; the other five tasks
+use the model's chat format.
+
+\paragraph{LongBench v2}~\cite{bai2025longbenchv2} is a 503-question
+multiple-choice benchmark with four answer options per question.  We
+report overall accuracy and break it down by difficulty
+(\texttt{easy} / \texttt{hard}) and by context length
+(\texttt{short} / \texttt{medium} / \texttt{long}).
+
+
+\section{Baselines and Hyperparameters}\label{sec:baselines}
+
+DCT-Page is compared against five sparse-attention methods organized
+into two paradigms.  All five leave prefill unchanged and modify only
+decode-time attention; their algorithmic details and provenance are
+covered in Chapter~\ref{chap:background}.  This section fixes the
+configuration with which each method is run in
+Chapter~\ref{chap:results}.
+
+\paragraph{Page-based baselines.}
+Quest~\cite{tang2024quest},
+SeerAttention-R~\cite{gao2025seerattention}, and
+InfLLM~\cite{xiao2024infllm} share the fixed-page paradigm with
+DCT-Page.  For each we match the \emph{selected-token budget}
+$B \cdot P = 64 \cdot 32 = 2{,}048$ tokens per decode step, the same
+budget DCT-Page uses in Section~\ref{sec:config}; settings within
+that budget follow each method's upstream recommendation.  Table
+\ref{tab:baseline-config} summarizes the per-method configuration.
+
+\paragraph{Cluster-based reference.}
+Multipole Attention~\cite{singh2025multipole} organizes keys into a
+$k$-means cluster tree rather than fixed-size pages, and its per-step
+work cannot be matched against the page-based budget in a one-to-one
+fashion.  Multipole typically achieves the highest accuracy across
+our benchmarks but at substantially longer decode latency, so we
+exclude it from the main accuracy tables and instead devote
+\S\ref{sec:results-multipole} to its accuracy--throughput trade-off
+against DCT-Page.  Multipole is run with a single-level
+configuration of $3.125\%$ leaf-cluster retention --- conceptually
+matched to DCT-Page's $P{=}32$ page granularity --- and a per-level
+token-budget threshold of $2{,}048$, with non-selected tokens
+replaced by their cluster centroid and re-clustering performed at
+every prefill window.
+
+\paragraph{Full-KV reference.}
+Every accuracy table additionally includes a Full-KV row, which is
+each model run with its stock dense decode attention.  This is the
+accuracy upper bound that all sparse methods aim to approach at
+lower decode-time cost.
+
+\paragraph{Model coverage.}
+Page-based baselines are run on whichever model the upstream code
+supports: SeerAttention-R is reported on Qwen3-8B only (the released
+gates are trained on the Qwen family, with no equivalent
+Llama-3 checkpoint), InfLLM on Llama-3.1-8B-Instruct only (the
+upstream targets the Llama family), and Quest on both models.
+Multipole and Full-KV are reported on both models.
+
+\begin{table}[ht]
+  \centering
+  \caption[Per-method configuration used in the experiments.]
+  {Per-method configuration used in the experiments.  ``Budget''
+   denotes the per-decode-step token budget that the method's
+   selection rule must satisfy.}
+  \label{tab:baseline-config}
+  \small
+  \begin{tabular}{l p{0.55\textwidth} l}
+    \toprule
+    Method            & Key settings                                      & Models \\
+    \midrule
+    DCT-Page          & $P{=}32,\ B{=}64,\ C/P{=}1/8,\ \rho{=}\gamma{=}\max$ & both \\
+    Quest             & page size $32$, budget $2{,}048$ tokens           & both \\
+    SeerAttention-R   & token-budget mode, budget $2{,}048$ tokens        & Qwen3 only \\
+    InfLLM            & block size $32$, top-$64$ blocks, sink $32$,
+                        local $4{,}096$, repr.\ top-$4$                   & Llama only \\
+    Multipole         & $3.125\%$ leaf retention ($\equiv P{=}32$),
+                        threshold $2{,}048$, centroid replacement         & both \\
+    Full-KV           & dense decode attention                            & both \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+
+\section{Speed-Measurement Protocol}\label{sec:speed-protocol}
+
+All speed numbers are collected on a single NVIDIA RTX A6000 (48~GiB)
+from one unified profiler that drives the model with random
+token inputs and records both the end-to-end decode latency and a
+per-stage breakdown in a single run.  Two execution paths are
+compared:
+
+\begin{itemize}
+  \item \emph{Full-KV} --- the model with its stock dense decode
+        attention, served by upstream FlashInfer's paged-attention
+        primitive.
+  \item \emph{DCT-Page} --- the production configuration introduced
+        in Section~\ref{sec:kernels}, in which DCT-Page's
+        scoring/selection kernels feed per-(batch, kv-head) page
+        indices into the same upstream FlashInfer primitive via a
+        virtual-batching scheme that requires no custom fork of the
+        attention runtime.
+\end{itemize}
+
+\paragraph{CUDA graphs.}
+Every speed measurement reported in this thesis uses CUDA-graph
+capture for the decode loop.  This pins the indices/indptr buffers
+that the paged-attention primitive reads and removes per-step Python
+and indices-buffer allocation overheads that would otherwise dominate
+at short context length.
+
+\paragraph{Throughput measurement.}
+For each $(L, \text{batch})$ cell with $L \in \{8, 16, 32, 64, 128\}\text{K}$
+tokens and batch sizes $\{1, 2\}$, the profiler runs $8$ warm-up
+steps followed by $128$ timed decode steps inside the captured CUDA
+graph.
+Per-step CUDA-event timings are accumulated and reported as two
+quantities: (i)~\emph{attention-only} latency (the time spent inside
+the attention sub-module, including scoring/selection for DCT-Page),
+and (ii)~\emph{end-to-end} per-step latency (the same chain extended
+through the MLP, layer-norm, and projection).
+Speedups in Section~\ref{sec:results-speed} are reported as the ratio
+of the Full-KV latency to the DCT-Page latency at the same
+$(L, \text{batch})$.
+
+\paragraph{Per-stage breakdown.}
+Within the same profiler, a chain of CUDA events is placed between
+the adjacent stages of the decode forward: QKV projection, proxy
+update, scoring, the fused top-$k$ selection / KV assembly kernel,
+the attention kernel itself, and the output projection.  Because the
+events are chained end-to-end, the sum of the inter-event elapsed
+times exactly equals the full decode-step wall clock.
+The QKV projection and the output projection are identical between
+Full-KV and DCT-Page --- they operate on the query/output token alone
+and do not depend on the KV-selection strategy --- so we exclude them
+from the comparison reported in Section~\ref{sec:results-speed}.
+The reported attention-time budget is therefore
+\begin{equation*}
+  t_\text{Full-KV}^{\text{attn}}
+  \;\;\text{vs.}\;\;
+  t_\text{DCT-Page}^{\text{proxy}}
+  + t_\text{DCT-Page}^{\text{score}}
+  + t_\text{DCT-Page}^{\text{topk+assemble}}
+  + t_\text{DCT-Page}^{\text{attn}},
+\end{equation*}
+i.e.\ the Full-KV attention kernel time against the sum of DCT-Page's
+proxy update, scoring, fused top-$k$/KV-assembly, and attention
+kernel times.  Reporting the comparison as a sum keeps the overhead
+of DCT-Page's bookkeeping kernels charged against its measured
+speedup.
