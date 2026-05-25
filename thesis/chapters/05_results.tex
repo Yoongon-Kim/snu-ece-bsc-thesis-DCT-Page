@@ -23,12 +23,6 @@ $B \cdot P = 2{,}048$ selected-token budget fixed in
 Section~\ref{sec:baselines}; bold entries mark the best sparse-method
 score per column.
 
-% Headline claims (from filled-in numbers below):
-%   - Llama-3.1-8B: DCT-Page Avg 86.26, +5.16 vs Quest (81.10),
-%     +27.28 vs InfLLM (58.98), -2.52 vs Full-KV (88.78).
-%   - Qwen3-8B:     DCT-Page Avg 83.72, +6.40 vs Quest (77.32),
-%     +16.98 vs SeerAttention-R (66.74), -5.11 vs Full-KV (88.83).
-
 \begin{table}[ht]
   \centering
   \caption[RULER per-task accuracy at 32K context.]
@@ -84,15 +78,6 @@ Table~\ref{tab:longbench-v2} reports v2 multiple-choice accuracy
 broken down by difficulty (easy / hard) and by context length
 (short / medium / long).
 
-% Headline claims (from filled-in numbers below):
-%   - LongBench v1: DCT-Page Avg 50.27 (Llama) / 48.63 (Qwen3),
-%     within 0.05-0.07 pts of Full-KV. Best sparse method on both.
-%   - LongBench v2 (Overall): DCT-Page beats Full-KV.
-%     Llama:  30.02 vs 29.82 (+0.20 over Full-KV; best sparse method).
-%     Qwen3:  32.01 vs 29.64 (+2.37 over Full-KV; SeerAttention-R
-%             slightly higher at 32.60).
-%   - Quest collapses on Medium/Long context cells of v2
-%     (Long: 0.00 / 0.93 for Llama / Qwen3).
 
 \begin{table}[ht]
   \centering
@@ -174,20 +159,6 @@ Figure~\ref{fig:speedup} shows the speedup curves;
 Table~\ref{tab:per-stage} decomposes the attention-time budget into
 the per-stage components defined in Section~\ref{sec:speed-protocol}.
 
-% TODO (headline claims to substantiate):
-%   - 5.65x attention-only speedup at 128K (batch 1).
-%   - 1.70x end-to-end speedup at 128K (batch 1).
-%
-% Analytical prose to add after Table 5.4 (per-stage profile):
-%   - Bookkeeping (proxy + score + topk/assemble) totals 0.76 ms,
-%     less than DCT-Page's own attention kernel (0.63 ms) and an
-%     order of magnitude less than Full-KV's 6.4 ms. The speedup
-%     therefore comes overwhelmingly from compressing the KV that
-%     attention actually consumes, not from the bookkeeping itself
-%     being free.
-%   - Proxy update is essentially free (0.3% of decode-step
-%     attention budget) thanks to the incremental update of
-%     Section 3.3.
 
 \begin{figure}[ht]
   \centering
@@ -262,15 +233,6 @@ Table~\ref{tab:multipole} reports DCT-Page and Multipole side by side
 on each accuracy benchmark and on decode throughput, so that the
 trade-off can be read directly.
 
-% Headline claims (from filled-in numbers below):
-%   - RULER: Multipole wins by +2.93 pts on Llama, +4.32 pts on Qwen3.
-%   - LongBench v1: Multipole +0.30 (Llama) but DCT-Page +0.15 (Qwen3) -- effectively a tie.
-%   - LongBench v2: DCT-Page wins both -- +1.79 (Llama), +0.60 (Qwen3).
-%   - Throughput @ 32K B1 (eager mode for fairness, since Multipole
-%     cannot be captured into a CUDA graph): DCT-Page 26.9 tok/s vs
-%     Multipole 7.50 tok/s => DCT-Page is 3.59x faster.
-%   - Pareto: Multipole = highest synthetic accuracy, DCT-Page = far
-%     better throughput at indistinguishable real-text accuracy.
 
 \begin{table}[ht]
   \centering
@@ -316,13 +278,6 @@ accuracy--throughput trade-off, holding all others at the defaults of
 Table~\ref{tab:config}.  All sweeps report RULER average accuracy on
 Llama-3.1-8B-Instruct at 32K context; the conclusions transfer to
 Qwen3-8B and to LongBench (not shown).
-
-% Analytical prose to add after Table 5.6:
-%   - Throughput is essentially flat across P=32..128 (39.15-39.37
-%     tok/s, < 1% spread). P=16 pays a ~5% bookkeeping penalty from
-%     doubling the page count. The takeaway: page granularity is a
-%     selection-fidelity knob, not a throughput knob. Hardware cost
-%     is insensitive in the regime we care about.
 
 \begin{table}[ht]
   \centering

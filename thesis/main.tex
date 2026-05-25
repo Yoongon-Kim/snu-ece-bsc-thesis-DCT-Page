@@ -32,7 +32,14 @@
 
 % =====================================================================
 \begin{document}
+
+% Cover / approval pages have an independent page sequence; disable
+% hyperref page anchors here so they don't collide with the roman
+% front matter that follows.
+\begingroup
+\hypersetup{pageanchor=false}
 \maketitle
+\endgroup
 
 % --- Front matter ---------------------------------------------------
 \pagenumbering{roman}
