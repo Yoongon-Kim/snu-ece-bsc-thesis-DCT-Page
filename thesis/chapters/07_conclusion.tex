@@ -1,9 +1,51 @@
 \chapter{Conclusion}\label{chap:conclusion}
 
-% Target length: ~1-2 pages.
+This thesis introduced DCT-Page, a training-free decode-time sparse
+attention method built on a single structural observation: pages of
+attention keys live overwhelmingly in their lowest few DCT bins, and
+a precomputed DCT-lowpass-IDCT projection therefore yields a faithful
+per-page summary at almost no runtime cost.  The resulting system
+divides the KV cache into fixed-size pages, scores each page by the
+query's inner product against its low-frequency proxy, and reads only
+the top-$k$ pages at full precision.  The scoring and selection
+machinery runs as three fused GPU kernels on top of upstream
+FlashInfer's paged-attention primitive, and the entire decode loop is
+CUDA-graph capturable.
 
-% TODO:
-%   1. One-paragraph recap of the insight and method.
-%   2. Headline empirical findings in 3-4 sentences.
-%   3. Future work: closing the Qwen3 Full-KV gap, extending to prefill,
-%      scaling to larger models.
+Empirically, DCT-Page is the strongest page-based sparse attention
+method in our evaluation.  On RULER at $32$K context with a matched
+$2{,}048$-token selected budget, it leads the best page-based
+baseline by $+5.16$ points on Llama-3.1-8B-Instruct and $+6.40$ points
+on Qwen3-8B, and stays within $0.07$ points of Full-KV on LongBench
+v1.  On LongBench v2 it is the only sparse method whose accuracy does
+not collapse on the longest context bucket --- where Quest's per-page
+min/max scorer drops to $0.93$ and below, DCT-Page maintains
+performance on par with Full-KV.  The attention-mass-recall analysis
+in Section~\ref{sec:mass-recall} traces this advantage to its
+mechanistic source: at the same per-step budget, DCT-Page covers
+$84.6\%$ of the dense softmax mass against Quest's $62.9\%$.  On a
+single A6000 GPU, the resulting throughput is $5.65 \times$ higher
+than Full-KV in the attention kernel and $1.70 \times$ higher
+end-to-end at $128$K context, and $3.59 \times$ higher than the
+cluster-based Multipole Attention at $32$K under matched eager-mode
+measurement.
+
+Several directions remain open.  First, DCT-Page's accuracy gap to
+Full-KV on Qwen3 RULER ($-5.11$ points on average) is larger than the
+corresponding Llama gap, and closing it is the most concrete next
+step --- candidate ideas include richer per-page proxies (more DCT
+bins, or hybrid scoring that combines DCT with a Quest-style
+boundary statistic) and per-layer rather than per-model
+hyperparameter tuning.  Second, the method as presented modifies only
+the decode path; long-prefill workloads currently see no speedup, and
+extending the frequency-domain summary to the prefill stage --- in
+the spirit of the concurrent FreqKV system~\cite{kai2026freqkv} ---
+could yield a unified prefill-and-decode design.  Third, our
+evaluation is restricted to two $8$B-class models on one GPU
+architecture; the behavior of DCT-Page at the $70$B+ scale and on
+non-A6000 hardware (especially memory-bound mobile or edge
+accelerators) is open.  Finally, the aggregation tasks of
+Section~\ref{sec:lags-aggregation} expose a structural limit of any
+fixed-budget page selector, and combining page-level selection with a
+sparse token-level fallback for such tasks is a promising direction
+that we leave for future work.

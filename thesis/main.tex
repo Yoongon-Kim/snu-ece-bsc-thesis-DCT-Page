@@ -38,9 +38,42 @@
 \pagenumbering{roman}
 
 \begin{abstract}
-% TODO: write after the rest of the thesis is drafted.
-% Target length: ~250-300 words.
-% Cover (1) problem, (2) insight, (3) method, (4) headline results, (5) impact.
+Decoder transformer language models at long context spend most of
+their decode-time budget reading a growing key--value cache from
+memory, putting per-step latency against the HBM-bandwidth ceiling.
+Sparse-attention methods sidestep this bottleneck by reading only a
+small subset of past tokens, but existing page-based selectors rely
+on coarse per-page statistics (Quest's per-channel min/max) or on
+learned gates that must be trained per model (SeerAttention-R), and
+the cluster-based alternative (Multipole Attention) achieves higher
+accuracy at the cost of a data-dependent decode path that cannot be
+captured into a CUDA graph and is multiples slower in practice.
+
+This thesis introduces DCT-Page, a training-free decode-time sparse
+attention method built on a single structural observation:
+contiguous pages of attention keys live overwhelmingly in their
+lowest few discrete-cosine-transform bins, with the first four bins
+of a $32$-token page covering on average $\approx 85\%$ of the page
+energy.  DCT-Page exploits this by replacing each page with a short
+DCT-lowpass-IDCT proxy --- a single precomputed linear projection
+applied as a small matrix multiply per closed page --- and scoring
+pages by the query's inner product against the proxy.  The top-$k$
+pages are read at full precision and the rest are dropped.  Scoring
+and selection run as three fused GPU kernels on top of upstream
+FlashInfer's paged-attention primitive, and the entire decode loop
+is CUDA-graph capturable.
+
+On RULER at $32$K context, DCT-Page leads the best page-based sparse
+baseline by $+5.16$ and $+6.40$ points on Llama-3.1-8B-Instruct and
+Qwen3-8B respectively, stays within $0.07$ points of Full-KV on
+LongBench v1, and is the only sparse method whose accuracy does not
+collapse on the longest LongBench v2 context bucket.  An
+attention-mass-recall analysis traces this advantage to its source:
+at the same per-step budget DCT-Page covers $84.6\%$ of the dense
+softmax mass against the page-based baseline's $62.9\%$.  On a
+single A6000 GPU at $128$K context, DCT-Page is $5.65 \times$ faster
+than Full-KV in the attention kernel and $1.70 \times$ faster
+end-to-end.
 \end{abstract}
 
 \tableofcontents
@@ -63,7 +96,40 @@
 
 % --- Korean abstract appendix --------------------------------------
 \begin{abstract}[ko]
-% TODO: 본문 영문 초록을 한국어로 번역.
+장문맥 디코더 트랜스포머 언어모델은 디코딩 시간의 대부분을 점점 커지는
+키--값(KV) 캐시를 메모리에서 읽어들이는 데에 사용하며, 결과적으로
+스텝당 지연 시간이 HBM 대역폭 한계에 직접적으로 묶이게 된다.
+희소 어텐션(sparse attention) 기법은 과거 토큰 중 일부만 선택적으로
+읽어 이 병목을 우회하지만, 기존의 페이지 기반 선택 방식은 페이지당
+거친 통계량(Quest의 채널별 min/max)이나 모델별로 별도 학습이 필요한
+게이트(SeerAttention-R)에 의존하며, 클러스터 기반 대안(Multipole
+Attention)은 정확도는 더 높지만 데이터 의존적인 디코드 경로 탓에 CUDA
+그래프 캡처가 불가능하고 실측 속도가 페이지 기반 방식보다 수 배
+느리다.
+
+본 논문은 DCT-Page를 제안한다. DCT-Page는 학습이 필요 없는 디코드
+시점 희소 어텐션 기법으로, 다음의 구조적 관찰에 기반한다: 어텐션
+키들의 연속된 페이지는 이산 코사인 변환(DCT)의 가장 낮은 몇 개의
+주파수 빈에 대부분의 에너지가 집중되어 있으며, $32$ 토큰 페이지에서
+처음 4개의 빈이 전체 페이지 에너지의 평균 약 $85\%$ 를 차지한다.
+DCT-Page는 이 관찰을 활용하여 각 페이지를 짧은 DCT 저주파-IDCT
+프록시(precomputed 선형 사영을 페이지가 닫힐 때마다 한 번의 작은
+행렬 곱으로 적용)로 대체하고, 쿼리와 프록시 토큰들의 내적을 통해
+페이지에 점수를 매긴다. 상위 $k$개의 페이지만 원본 정밀도로 읽고
+나머지는 폐기한다. 점수 계산과 선택은 upstream FlashInfer의 페이지
+어텐션 위에서 세 개의 fused GPU 커널로 동작하며, 전체 디코드 루프는
+CUDA 그래프로 캡처 가능하다.
+
+$32$K 컨텍스트의 RULER에서 DCT-Page는 가장 강한 페이지 기반 베이스
+라인보다 Llama-3.1-8B-Instruct에서 $+5.16$점, Qwen3-8B에서 $+6.40$점
+앞서며, LongBench v1에서 Full-KV와의 차이가 $0.07$점 이내, LongBench
+v2의 가장 긴 컨텍스트 구간에서 정확도가 붕괴하지 않는 유일한 희소
+어텐션 기법이다. 어텐션 질량 회복(attention-mass recall) 분석은 이
+우위의 메커니즘을 정량적으로 설명한다: 동일한 스텝당 예산에서
+DCT-Page는 dense softmax 질량의 $84.6\%$를 덮는 반면 페이지 기반
+베이스라인은 $62.9\%$에 그친다. 단일 A6000 GPU의 $128$K 컨텍스트에서
+DCT-Page는 어텐션 커널 기준 $5.65\times$, end-to-end 기준
+$1.70\times$ Full-KV보다 빠르다.
 \end{abstract}
 
 \end{document}
