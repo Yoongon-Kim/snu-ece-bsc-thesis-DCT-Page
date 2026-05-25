@@ -1,28 +1,210 @@
 \chapter{Background and Related Work}\label{chap:background}
 
-% Target length: ~4-6 pages.
+This chapter establishes the technical context for the rest of the
+thesis.  Section~\ref{sec:kv-bottleneck} recalls the standard
+decoder-transformer attention mechanism and identifies the
+KV-cache--bandwidth bottleneck that motivates sparse decoding.
+Section~\ref{sec:related-sparse} surveys four representative sparse
+or compressed KV-attention methods that DCT-Page is compared against
+in Chapter~\ref{chap:results}, organizing them by the structural
+choice that distinguishes each one from a dense baseline.
+Section~\ref{sec:related-freq} reviews the discrete cosine transform
+in the specific role DCT-Page uses it for, namely as a low-rank
+projection of a key-vector sequence, and discusses the small set of
+contemporary works that also exploit frequency-domain compression
+in long-context LLMs.
 
 
+% =====================================================================
 \section{Autoregressive Decoding and the KV-Cache Bottleneck}\label{sec:kv-bottleneck}
-% TODO: standard decoder transformer attention, KV cache growth,
-% memory-bandwidth bottleneck at long context.
+% =====================================================================
+
+Decoder transformers~\cite{vaswani2017attention} generate text
+autoregressively: at decode step $t$, the model conditions on every
+previously emitted token and produces a single new token.  The
+attention mechanism at each layer computes, for the current
+query~$q_t \in \mathbb{R}^{d}$ and the cumulative keys
+$K_{\le t} \in \mathbb{R}^{t \times d}$ and values
+$V_{\le t} \in \mathbb{R}^{t \times d}$,
+\begin{equation}\label{eq:attn}
+  \mathrm{Attn}(q_t, K_{\le t}, V_{\le t})
+  \;=\;
+  \mathrm{softmax}\!\bigl(q_t K_{\le t}^{\top} / \sqrt{d}\bigr)\,V_{\le t}.
+\end{equation}
+To avoid recomputing the past keys and values at every step, modern
+inference runtimes maintain a \emph{KV cache} that grows by one row
+per decode step.  Each step then performs an inner product between
+$q_t$ and the entire cached $K_{\le t}$, followed by a softmax-weighted
+read of $V_{\le t}$.
+
+The cost of Eq.~\eqref{eq:attn} per decode step is dominated by the
+memory traffic of reading the cache.  At context length $L$, the per-step
+attention reads $O(L \cdot d)$ entries of $K$ and $V$ from GPU global
+memory, and the arithmetic intensity of the operation (a single small
+matrix--vector product per head) is far below the compute-to-memory
+ratio of modern accelerators.  As a result, decode latency scales
+approximately linearly with $L$ and is bottlenecked by HBM bandwidth
+rather than by FLOPs.  At $L = 128$K with an 8B-parameter model in
+\texttt{bfloat16}, the KV cache alone can occupy more than half of the
+device memory budget, and the per-step attention can take longer than
+all other layer operations combined.
+
+Two structural observations sit behind every sparse-attention
+proposal of the past two years.  First, even at long context the
+dense softmax in Eq.~\eqref{eq:attn} concentrates most of its mass
+on a small subset of past tokens; the rest contributes negligible
+energy and could in principle be skipped without changing the output.
+Second, prefill --- the one-pass attention over the prompt that
+populates the cache --- is compute-bound rather than memory-bound, so
+modifying it offers little speedup.  Sparse-attention systems
+therefore typically leave prefill unchanged and intervene only at
+decode time, replacing the full read of $K_{\le t}, V_{\le t}$ with
+some compressed or filtered surrogate.  DCT-Page belongs to this
+family.
 
 
+% =====================================================================
 \section{Sparse and Compressed KV Attention}\label{sec:related-sparse}
+% =====================================================================
+
+The methods DCT-Page is compared against differ along two structural
+axes: (i) how they \emph{group} the KV cache into selectable units
+--- fixed-size pages or learned clusters --- and (ii) how they
+\emph{score} each unit against the current query.  The first three
+methods below share the page-based paradigm with DCT-Page; Multipole
+sits in the cluster-based paradigm and is discussed last.
 
 \subsection{Quest}\label{sec:rel-quest}
-% TODO
+
+Quest~\cite{tang2024quest} partitions the KV cache into fixed-size
+pages and, for each page, stores a pair of per-channel summary
+statistics: the elementwise minimum and maximum of the keys inside
+the page.  At decode time the query is scored against every page by
+an \emph{approximate-max inner product}: for each channel, the
+contribution to the score is the larger of $q[c] \cdot \min_p[c]$ and
+$q[c] \cdot \max_p[c]$, summed across channels.  This is a cheap and
+position-agnostic upper bound on the maximum inner product the query
+could have with any key inside the page.  Quest then attends to the
+top-$k$ pages by this score and ignores the rest.
+
+The per-page metadata is small --- two scalars per channel rather
+than a learned proxy --- and the kernel cost of scoring is low, which
+makes Quest fast at moderate context length.  However, the min/max
+abstraction discards \emph{intra-page} structure entirely: it cannot
+distinguish a page in which a few channels happen to span a wide
+range from a page in which one specific token has a large inner
+product with the query.  Section~\ref{sec:quest-collapse} returns to
+this point empirically.
 
 \subsection{SeerAttention-R}\label{sec:rel-seer}
-% TODO
+
+SeerAttention-R~\cite{gao2025seerattention} adds a small learned
+\emph{gate} to each decoder layer that, at decode time, predicts
+per-block importance scores from the current query.  The gate is
+trained on long-context data with a supervision signal derived from
+the dense attention distribution, so that its block scores correlate
+with the softmax mass that the dense model would have placed on each
+block.  At inference, the gates are evaluated at every layer and the
+top-$k$ blocks are kept under a fixed token budget.
+
+The learned-gate approach can be very accurate at a given budget
+because it is explicitly optimized for the selection task, but it
+imposes two practical constraints.  First, a model-specific
+checkpoint must be released for every base model; in our experiments
+we use the Qwen3-family gates released by the authors, since no
+equivalent Llama-3 gates are available, and SeerAttention-R is
+therefore reported on Qwen3-8B only.  Second, the gate adds a small
+but non-zero per-layer parameter count and forward-time cost, which
+slightly reduces its ceiling on raw decode throughput.
 
 \subsection{InfLLM}\label{sec:rel-infllm}
-% TODO
+
+InfLLM~\cite{xiao2024infllm} approaches long-context decoding from a
+retrieval perspective.  The past KV cache is broken into blocks; each
+block is summarized by a small set of \emph{representative tokens}
+chosen by an upstream-defined importance heuristic; and at decode
+time the current query is matched against every block's
+representatives to produce a relevance score.  InfLLM additionally
+keeps an initial sink region (the first $n_\text{init}$ tokens) and a
+local sliding window, attending in full to both regardless of the
+retrieval result.  Only the top-ranked blocks outside the sink and
+local zones are read at full precision.
+
+The retrieval framing makes InfLLM agnostic to context length in
+principle, but it pays for this flexibility in implementation
+complexity: the block representatives must be selected and indexed
+carefully, and the published code path currently targets the Llama-3
+family only.  We accordingly report InfLLM on Llama-3.1-8B-Instruct
+alone.
 
 \subsection{Multipole Attention}\label{sec:rel-multipole}
-% TODO
+
+Multipole Attention~\cite{singh2025multipole} departs from the
+fixed-page paradigm and instead clusters keys with hierarchical
+$k$-means.  At decode time the query attends through cluster
+centroids: each cluster contributes a single representative key/value
+pair, and clusters whose centroids score highly are then expanded to
+their constituent keys for the final attention.  This is the
+attention analogue of the fast-multipole-method approximation used in
+$n$-body simulation.
+
+Cluster-based selection has two strengths and one structural
+weakness.  Its strengths are that the cluster representatives carry
+within-page structure (a centroid is a positionless but
+distribution-aware summary) and that the hierarchical structure
+allows variable-width effective receptive fields per layer.
+Empirically this yields the highest long-context accuracy among the
+methods we evaluate (Section~\ref{sec:results-multipole}).  Its
+weakness is that clusters are \emph{data-dependent and recomputed
+during generation}: the centroids must be re-estimated as the KV
+cache grows, which means the per-step computation cannot be captured
+into a CUDA graph and the decode-time wall clock is substantially
+slower than the page-based methods at the same selected-token budget.
+This is the source of the accuracy--throughput Pareto trade-off that
+Section~\ref{sec:results-multipole} reports in detail.
 
 
+% =====================================================================
 \section{Frequency-Domain Signal Compression}\label{sec:related-freq}
-% TODO: DCT basics, why lowpass-IDCT preserves dominant signal energy.
-% Brief note on FreqKV as a closely-related contemporary work.
+% =====================================================================
+
+The DCT proxy of Section~\ref{sec:proxy} is a low-rank linear
+projection of a key sequence onto its leading discrete-cosine
+coefficients.  We collect here the small set of background facts that
+make this projection well-behaved for our application.
+
+\paragraph{Discrete cosine transform.}
+The type-II DCT used in Eq.~\eqref{eq:dct} is an orthonormal linear
+transform that diagonalizes the second-order autocorrelation matrix
+of a stationary Markov-1 signal --- this is the classical motivation
+for its dominance in image and audio compression
+(JPEG, MP3)~\cite{rao1990dct}.  Orthonormality means that energy is
+preserved under DCT, and Parseval's theorem applies coefficient by
+coefficient: discarding the higher-frequency bins reduces the
+sequence's $\ell_2$ norm by exactly the energy of those bins.
+Whether the resulting low-rank reconstruction is a good summary of
+the original signal therefore reduces to whether the signal's energy
+is in fact concentrated in the leading bins, which is the empirical
+question raised in Section~\ref{sec:insight}.
+
+\paragraph{Lowpass-IDCT as a linear projection.}
+Concatenating a DCT, a lowpass truncation that keeps the first $C$
+coefficients, and the corresponding inverse DCT yields a single
+$P \times P$ projection matrix (truncated to its first $C$ rows in
+practice) that can be precomputed once and applied as a small dense
+matrix multiply at runtime.  This is the operator
+$M \in \mathbb{R}^{C \times P}$ of Eq.~\eqref{eq:proxy}.  All of the
+mass-recall and accuracy results in Chapter~\ref{chap:results} use
+this single fixed $M$; nothing about the proxy is learned.
+
+\paragraph{Concurrent frequency-domain work.}
+The closest contemporary system is
+FreqKV~\cite{kai2026freqkv}, which uses a DCT-based representation
+to compress the KV cache for context-window extension rather than
+for sparse decoding.  FreqKV operates in the prefill stage and
+modifies the cache layout itself, whereas DCT-Page leaves the cache
+unchanged and uses DCT only as a scoring proxy during decode.  The
+two systems are complementary --- one could in principle combine
+FreqKV's frequency-domain prefill compression with DCT-Page's
+frequency-domain decode-time scoring --- but in this thesis we
+restrict attention to the decode-time use of DCT.
