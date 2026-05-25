@@ -28,8 +28,8 @@
 | Ch.2 Background and Related Work | chapters/02_background.tex | 스켈레톤만 |
 | Ch.3 Method: DCT-Page | chapters/03_method.tex | **본문 완성** (6절, TikZ + DCT energy + pipeline figure) |
 | Ch.4 Experimental Setup | chapters/04_experiments.tex | **본문 완성** (4절, Table 4.1 baseline config) |
-| Ch.5 Results | chapters/05_results.tex | **표 구조만 완성, 수치 비어있음** (9개 표 + 1 figure placeholder) |
-| Ch.6 Analysis | chapters/06_analysis.tex | 스켈레톤만 |
+| Ch.5 Results | chapters/05_results.tex | **본문 완성** — 9 표 + 1 figure 모두 수치/이미지 채워짐 + 5.3/5.5에 흡수된 분석 문단 추가 |
+| Ch.6 Analysis | chapters/06_analysis.tex | **본문 완성** — 3 sections (Mass-Recall, Wins-and-Lags, Limitations), Figure 6.1 포함 |
 | Ch.7 Conclusion | chapters/07_conclusion.tex | 스켈레톤만 |
 
 ## 남은 TODO (우선순위 순)
@@ -41,17 +41,17 @@
 - [x] Figure 5.1 speedup curves — `figures/dct_speedup.pdf` (포스터 Fig.4 PDF 재사용)
 - [x] Table 5.4 per-stage profile (ms/step) — Full-KV 6.400 vs DCT-Page total 1.389. top-k와 KV assembly가 한 커널에서 처리되어 fused 행으로 reporting.
 - [x] Table 5.5 Multipole comparison — Multipole이 RULER에서 +3-4pt 앞서지만 LongBench는 동률, throughput은 DCT-Page가 5.14× 빠름 (38.52 vs 7.50 tok/s).
-- [ ] Table 5.6 ablation: page size — **외부 세션 ablation script로 처리 중** (아래 참조)
-- [ ] Table 5.7 ablation: budget — 외부 세션
-- [ ] Table 5.8 ablation: compression ratio — 외부 세션
-- [ ] Table 5.9 ablation: aggregators — 외부 세션
+- [x] Table 5.6 ablation: page size — P=16 최고 정확도, P=32 최고 throughput (sweet spot)
+- [x] Table 5.7 ablation: budget — 2x로 늘릴 때마다 +2.49 → +1.83 (diminishing)
+- [x] Table 5.8 ablation: compression ratio — C=4에서 거의 saturation
+- [x] Table 5.9 ablation: aggregators — scorer ρ가 5pt 차이 만들고 γ는 noise. default max/max는 max/mean과 0.61pt 차이 (변동성 안)
 
 **Ablation 외부 세션 (2026-05-25 시작):**
 별도 Claude 세션을 `/home/yoongonkim/DCT-Page`에서 시작해 ablation grid 15 RULER runs + 4 speed runs를 돌리고 markdown 표 4개로 출력하도록 함. 결과 받으면 5.6~5.9에 그대로 paste.
 
 ### 작성
 - [ ] Ch.2 Background + Related Work — Ch.4.3에서 빼낸 baseline 메서드 설명을 여기로 가져옴
-- [ ] Ch.6 Analysis — mass-recall (poster Fig.2), scoring-method comparison, oracle upper bound, limitations
+- [x] Ch.6 Analysis — 외부 세션에서 본문 작성됨. 3 sections: Mass-Recall / Wins-and-Lags / Limitations. **Figure `figures/paged_mass_recall.png` 아직 없음 — 포스터에서 추출 또는 새로 생성 필요**.
 - [ ] Ch.1 Introduction (Method/Results 후 작성)
 - [ ] Ch.7 Conclusion (Method/Results 후 작성)
 - [ ] Abstract (en + ko) — 가장 마지막
