@@ -47,11 +47,9 @@ Concretely, prefill on an $L$-token prompt computes a $Q[L \times d]
 intensity $O(L)$ FLOP per byte loaded), whereas decode computes a
 $q[1 \times d] \cdot K^{\top}[d \times L]$ matrix--vector product
 (arithmetic intensity $O(1)$, independent of $L$).  For any $L$ on
-the order of a thousand or more, prefill's intensity sits above the
-$\approx 200$--$400$~FLOP/byte ridge of modern GPUs (e.g.\ the A6000
-used in this thesis) while decode sits far below it; prefill is
-therefore in the compute-bound regime and modifying it offers little
-speedup, while decode is squarely memory-bound.  Sparse-attention
+the order of a thousand or more, prefill is therefore in the
+compute-bound regime and modifying it offers little speedup, while
+decode is squarely memory-bound.  Sparse-attention
 systems --- DCT-Page included --- therefore typically leave prefill
 unchanged and intervene only at decode time, replacing the full read
 of $K_{\le t}, V_{\le t}$ with some compressed or filtered surrogate.
@@ -79,7 +77,10 @@ $c \in \{1, \dots, d\}$, the per-channel contribution is taken to be
 the larger of $q[c] \cdot \min_p[c]$ and $q[c] \cdot \max_p[c]$ ---
 since the true key value $k[c]$ for any token inside the page lies in
 $[\min_p[c], \max_p[c]]$, this is a tight upper bound on
-$q[c] \cdot k[c]$ that requires only the per-channel sign of $q[c]$.
+$q[c] \cdot k[c]$ --- achievable when some token in the page attains
+the channel extreme --- and selecting between $\min_p[c]$ and
+$\max_p[c]$ requires only the per-channel sign of $q[c]$ ($\max_p[c]$
+if $q[c] \ge 0$, $\min_p[c]$ otherwise).
 The page score is the sum of these per-channel upper bounds across
 the $d$ channels, which is itself an upper bound on
 $\max_{k \in \text{page}} q^{\top} k$.  This bound is cheap (two
@@ -138,7 +139,7 @@ alone.
 
 \subsection{Multipole Attention}\label{sec:rel-multipole}
 
-Multipole Attention~\cite{singh2025multipole} departs from the
+Multipole Attention~\cite{hooper2025multipole} departs from the
 fixed-page paradigm and instead clusters keys with hierarchical
 $k$-means.  At decode time the query attends through cluster
 centroids: each cluster contributes a single representative key/value
@@ -177,10 +178,10 @@ make this projection well-behaved for our application.
 
 \paragraph{Discrete cosine transform.}
 The type-II DCT used in Eq.~\eqref{eq:dct} is an orthonormal linear
-transform that diagonalizes the second-order autocorrelation matrix
-of a stationary Markov-1 signal --- this is the classical motivation
-for its dominance in image and audio compression
-(JPEG, MP3)~\cite{rao1990dct}.  Orthonormality means that energy is
+transform that asymptotically diagonalizes the second-order
+autocorrelation matrix of a stationary Markov-1 signal --- this is
+the classical motivation for its dominance in image and audio
+codecs (e.g.\ JPEG)~\cite{rao1990dct}.  Orthonormality means that energy is
 preserved under DCT, and Parseval's theorem applies coefficient by
 coefficient: discarding the higher-frequency bins reduces the
 sequence's $\ell_2$ norm by exactly the energy of those bins.
@@ -190,11 +191,10 @@ is in fact concentrated in the leading bins, which is the empirical
 question raised in Section~\ref{sec:insight}.
 
 \paragraph{Lowpass-IDCT as a linear projection.}
-Concatenating a DCT, a lowpass truncation that keeps the first $C$
-coefficients, and the corresponding inverse DCT yields a single
-$P \times P$ projection matrix (truncated to its first $C$ rows in
-practice) that can be precomputed once and applied as a small dense
-matrix multiply at runtime.  This is the operator
+Concatenating a length-$P$ DCT, a truncation that keeps the first $C$
+coefficients, and a length-$C$ inverse DCT yields a single
+$C \times P$ matrix that can be precomputed once and applied as a
+small dense matrix multiply at runtime.  This is the operator
 $M \in \mathbb{R}^{C \times P}$ of Eq.~\eqref{eq:proxy}.  All of the
 mass-recall and accuracy results in Chapter~\ref{chap:results} use
 this single fixed $M$; nothing about the proxy is learned.

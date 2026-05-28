@@ -170,24 +170,24 @@ shorter sequence that retains only those bins.
 
 Fix a target proxy length $C$ with $1 \le C \le P$
 (``compression ratio'' $C/P$).  Let
-$F \in \mathbb{R}^{P \times P}$ be the orthonormal DCT-II matrix from
-Eq.~\eqref{eq:dct} and let $\mathrm{trunc}_C(\cdot)$ project onto its
-first $C$ rows.  The DCT-lowpass-IDCT page proxy is
+$F_P \in \mathbb{R}^{P \times P}$ be the orthonormal DCT-II matrix
+from Eq.~\eqref{eq:dct}, let $F_C \in \mathbb{R}^{C \times C}$ be the
+same construction with $P$ replaced by $C$, and let
+$E_C = [\,I_C \;\mid\; 0\,] \in \mathbb{R}^{C \times P}$ select the
+first $C$ coordinates.  The DCT-lowpass-IDCT page proxy is
 \begin{equation}\label{eq:proxy}
   K_p^{\text{proxy}} \;=\; M\,K_p
   \quad\text{with}\quad
-  M \;=\; \sqrt{\tfrac{C}{P}}\,
-          F^{-1}\,
-          \begin{bmatrix} I_C & 0 \\ 0 & 0 \end{bmatrix}\,
-          F
+  M \;=\; \sqrt{\tfrac{C}{P}}\;
+          F_C^{\top}\, E_C\, F_P
           \;\in\; \mathbb{R}^{C \times P},
 \end{equation}
-i.e.\ apply DCT, keep the leading $C$ coefficients, invert, and
-rescale by $\sqrt{C/P}$ so that the proxy preserves the
-energy of the retained band.  Crucially $M$ depends only on $(P, C)$,
-so it is computed once at start-up and cached as a single
-$C \times P$ matrix; at runtime, proxy construction is a single
-batched matrix multiply.
+i.e.\ apply the length-$P$ DCT, keep the leading $C$ coefficients,
+apply the length-$C$ IDCT, and rescale by $\sqrt{C/P}$ so that the
+$C$-token proxy matches the per-token energy density of the original
+$P$-token page.  Crucially $M$ depends only on $(P, C)$, so it is
+computed once at start-up and cached as a single $C \times P$ matrix;
+at runtime, proxy construction is a single batched matrix multiply.
 
 \paragraph{Compression knob.}
 The proxy length $C$ trades selection fidelity against proxy-cache
@@ -387,13 +387,20 @@ correctness checks and for environments without Triton.
 
 \paragraph{Attention via FlashInfer's paged primitive.}
 Given $\mathcal{T}_h$, the attention itself is dispatched to
-FlashInfer's variable-length paged-attention primitive.  The primitive
-accepts a per-(virtual batch, kv-head) index list and computes
-ordinary scaled dot-product attention against exactly those pages,
-without materializing the unselected KV.  Conceptually, the runtime
-treats each $(b, h)$ pair as a ``virtual batch'' with its own page
-list, which is how DCT-Page realizes per-kv-head heterogeneous
-selection at hardware speed.
+FlashInfer's variable-length paged-attention primitive.  Let
+$b \in \{0, \dots, B-1\}$ index the real batch (the input sequences
+fed to the model) and $h \in \{0, \dots, H_k-1\}$ index the kv head;
+DCT-Page's selection rule (Eq.~\eqref{eq:select}) runs independently
+per $(b, h)$ pair and therefore produces a distinct page list per
+pair, which FlashInfer's upstream API does not directly support
+(it accepts only one page list per batch slot).  The runtime
+sidesteps this by flattening the $(b, h)$ index space into a single
+``virtual batch'' dimension of size $B \cdot H_k$; each slot of this
+virtual batch carries its own page list, and FlashInfer treats it as
+an ordinary batched paged-attention call against exactly those pages,
+without materializing the unselected KV.  This is how DCT-Page
+realizes per-kv-head heterogeneous selection at hardware speed
+without forking the upstream kernel.
 
 This composition keeps the new code paths small --- only the three
 scoring/selection kernels --- while reusing a battle-tested attention

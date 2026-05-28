@@ -1,141 +1,188 @@
 % =====================================================================
 % References for DCT-Page thesis.
-% Entries grow as chapters cite them; the 4 poster references + the
-% Multipole baseline are seeded here.
+% Each entry pairs the arXiv eprint with the formal venue when published.
 % =====================================================================
 
 % --- Core baselines compared in the thesis --------------------------
 
 @inproceedings{xiao2024infllm,
-  author    = {Xiao, Chaojun and Zhang, Pengle and Han, Xu and Xiao, Guangxuan
-               and Lin, Yankai and Zhang, Zhengyan and Liu, Zhiyuan
-               and Sun, Maosong},
-  title     = {{InfLLM}: Training-Free Long-Context Extrapolation for {LLMs}
-               with an Efficient Context Memory},
-  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
-  year      = {2024}
+  author        = {Chaojun Xiao and Pengle Zhang and Xu Han and Guangxuan Xiao
+                   and Yankai Lin and Zhengyan Zhang and Zhiyuan Liu and Maosong Sun},
+  title         = {{InfLLM}: Training-Free Long-Context Extrapolation for {LLMs}
+                   with an Efficient Context Memory},
+  booktitle     = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year          = {2024},
+  eprint        = {2402.04617},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  url           = {https://arxiv.org/abs/2402.04617}
 }
 
 @inproceedings{tang2024quest,
-  author    = {Tang, Jiaming and Zhao, Yilong and Zhu, Kan and Xiao, Guangxuan
-               and Kasikci, Baris and Han, Song},
-  title     = {{Quest}: Query-Aware Sparsity for Efficient Long-Context
-               {LLM} Inference},
-  booktitle = {Proceedings of the International Conference on Machine
-               Learning (ICML)},
-  year      = {2024}
+  author        = {Jiaming Tang and Yilong Zhao and Kan Zhu and Guangxuan Xiao
+                   and Baris Kasikci and Song Han},
+  title         = {{Quest}: Query-Aware Sparsity for Efficient Long-Context
+                   {LLM} Inference},
+  booktitle     = {Proceedings of the 41st International Conference on Machine
+                   Learning (ICML)},
+  year          = {2024},
+  eprint        = {2406.10774},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  url           = {https://arxiv.org/abs/2406.10774}
 }
 
-@article{gao2025seerattention,
-  author    = {Gao, Yizhao and others},
-  title     = {{SeerAttention-R}: Sparse Attention Adaptation for Long
-               Reasoning},
-  journal   = {arXiv preprint arXiv:2506.08889},
-  year      = {2025}
+@misc{gao2025seerattention,
+  author        = {Yizhao Gao and Shuming Guo and Shijie Cao and Yuqing Xia
+                   and Yu Cheng and Lei Wang and Lingxiao Ma and Yutao Sun
+                   and Tianzhu Ye and Li Dong and Hayden Kwok-Hay So and Yu Hua
+                   and Ting Cao and Fan Yang and Mao Yang},
+  title         = {{SeerAttention-R}: Sparse Attention Adaptation for Long Reasoning},
+  year          = {2025},
+  eprint        = {2506.08889},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+  url           = {https://arxiv.org/abs/2506.08889}
+}
+
+@inproceedings{hooper2025multipole,
+  author        = {Coleman Hooper and Sebastian Zhao and Luca Manolache and Sehoon Kim
+                   and Michael W. Mahoney and Yakun Sophia Shao and Kurt Keutzer
+                   and Amir Gholami},
+  title         = {Multipole Attention for Efficient Long Context Reasoning},
+  booktitle     = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year          = {2025},
+  eprint        = {2506.13059},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  url           = {https://arxiv.org/abs/2506.13059}
 }
 
 @inproceedings{kai2026freqkv,
-  author    = {Kai, Jushi and others},
-  title     = {{FreqKV}: Key-Value Compression in Frequency Domain for
-               Context Window Extension},
-  booktitle = {International Conference on Learning Representations (ICLR)},
-  year      = {2026}
-}
-
-% --- Additional baseline used in this thesis ------------------------
-
-% TODO(user): verify and replace authors / venue. The author list
-% below is a placeholder.
-@misc{singh2025multipole,
-  author    = {Author, A. and others},
-  title     = {Multipole Attention: Hierarchical Clustering for
-               Long-Context Sparse Attention},
-  year      = {2025}
+  author        = {Jushi Kai and Yixuan Wang and Boyi Zeng and Haoli Bai and Bo Jiang
+                   and Ziwei He and Zhouhan Lin},
+  title         = {{FreqKV}: Key-Value Compression in Frequency Domain for
+                   Context Window Extension},
+  booktitle     = {International Conference on Learning Representations (ICLR)},
+  year          = {2026},
+  eprint        = {2505.00570},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  url           = {https://arxiv.org/abs/2505.00570}
 }
 
 % --- Models ---------------------------------------------------------
 
 @misc{grattafiori2024llama3,
-  author    = {Grattafiori, Aaron and others},
-  title     = {The {Llama}~3 Herd of Models},
-  year      = {2024},
-  eprint    = {2407.21783},
-  archivePrefix = {arXiv}
+  author        = {Aaron Grattafiori and Abhimanyu Dubey and Abhinav Jauhri
+                   and Abhinav Pandey and Abhishek Kadian and Ahmad Al-Dahle
+                   and Aiesha Letman and Akhil Mathur and Alan Schelten
+                   and Alex Vaughan and others},
+  title         = {The {Llama}~3 Herd of Models},
+  year          = {2024},
+  eprint        = {2407.21783},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  url           = {https://arxiv.org/abs/2407.21783}
 }
 
 @misc{yang2025qwen3,
-  author    = {Yang, An and others},
-  title     = {{Qwen3} Technical Report},
-  year      = {2025},
-  eprint    = {2505.09388},
-  archivePrefix = {arXiv}
+  author        = {An Yang and Anfeng Li and Baosong Yang and Beichen Zhang
+                   and Binyuan Hui and Bo Zheng and Bowen Yu and Chang Gao
+                   and Chengen Huang and Chenxu Lv and others},
+  title         = {{Qwen3} Technical Report},
+  year          = {2025},
+  eprint        = {2505.09388},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  url           = {https://arxiv.org/abs/2505.09388}
 }
 
 % --- Benchmarks -----------------------------------------------------
 
 @inproceedings{hsieh2024ruler,
-  author    = {Hsieh, Cheng-Ping and Sun, Simeng and Kriman, Samuel and
-               Acharya, Shantanu and Rekesh, Dima and Jia, Fei and
-               Ginsburg, Boris},
-  title     = {{RULER}: What's the Real Context Size of Your Long-Context
-               Language Models?},
-  booktitle = {Proceedings of the Conference on Language Modeling (COLM)},
-  year      = {2024}
+  author        = {Cheng-Ping Hsieh and Simeng Sun and Samuel Kriman and Shantanu Acharya
+                   and Dima Rekesh and Fei Jia and Yang Zhang and Boris Ginsburg},
+  title         = {{RULER}: What's the Real Context Size of Your Long-Context
+                   Language Models?},
+  booktitle     = {Proceedings of the Conference on Language Modeling (COLM)},
+  year          = {2024},
+  eprint        = {2404.06654},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  url           = {https://arxiv.org/abs/2404.06654}
 }
 
 @inproceedings{bai2024longbench,
-  author    = {Bai, Yushi and Lv, Xin and Zhang, Jiajie and Lyu, Hongchang
-               and Tang, Jiankai and Huang, Zhidian and Du, Zhengxiao
-               and Liu, Xiao and Zeng, Aohan and Hou, Lei and Dong, Yuxiao
-               and Tang, Jie and Li, Juanzi},
-  title     = {{LongBench}: A Bilingual, Multitask Benchmark for Long
-               Context Understanding},
-  booktitle = {Proceedings of the Annual Meeting of the Association for
-               Computational Linguistics (ACL)},
-  year      = {2024}
+  author        = {Yushi Bai and Xin Lv and Jiajie Zhang and Hongchang Lyu
+                   and Jiankai Tang and Zhidian Huang and Zhengxiao Du and Xiao Liu
+                   and Aohan Zeng and Lei Hou and Yuxiao Dong and Jie Tang
+                   and Juanzi Li},
+  title         = {{LongBench}: A Bilingual, Multitask Benchmark for Long
+                   Context Understanding},
+  booktitle     = {Proceedings of the 62nd Annual Meeting of the Association
+                   for Computational Linguistics (ACL)},
+  year          = {2024},
+  eprint        = {2308.14508},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  url           = {https://arxiv.org/abs/2308.14508}
 }
 
 @inproceedings{bai2025longbenchv2,
-  author    = {Bai, Yushi and Tu, Shangqing and Zhang, Jiajie and
-               Peng, Hao and others},
-  title     = {{LongBench}~v2: Towards Deeper Understanding and Reasoning
-               on Realistic Long-Context Multitasks},
-  booktitle = {Proceedings of the Annual Meeting of the Association for
-               Computational Linguistics (ACL)},
-  year      = {2025}
+  author        = {Yushi Bai and Shangqing Tu and Jiajie Zhang and Hao Peng
+                   and Xiaozhi Wang and Xin Lv and Shulin Cao and Jiazheng Xu
+                   and Lei Hou and Yuxiao Dong and Jie Tang and Juanzi Li},
+  title         = {{LongBench}~v2: Towards Deeper Understanding and Reasoning
+                   on Realistic Long-Context Multitasks},
+  booktitle     = {Proceedings of the 63rd Annual Meeting of the Association
+                   for Computational Linguistics (ACL)},
+  year          = {2025},
+  eprint        = {2412.15204},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  url           = {https://arxiv.org/abs/2412.15204}
 }
-
 
 % --- Signal processing classics -------------------------------------
 
 @book{rao1990dct,
-  author    = {Rao, K. R. and Yip, P.},
-  title     = {Discrete Cosine Transform: Algorithms, Advantages,
-               Applications},
+  author    = {K. R. Rao and P. Yip},
+  title     = {Discrete Cosine Transform: Algorithms, Advantages, Applications},
   publisher = {Academic Press},
-  year      = {1990}
+  address   = {San Diego, CA},
+  year      = {1990},
+  isbn      = {978-0-12-580203-1}
 }
 
 % --- Infrastructure / runtime --------------------------------------
 
 @inproceedings{ye2025flashinfer,
-  author    = {Ye, Zihao and Chen, Lequn and Lai, Ruihang and Lin, Wuwei
-               and Zhang, Yineng and Wang, Stephanie and Chen, Tianqi
-               and Kasikci, Baris and Grover, Vinod and Krishnamurthy, Arvind
-               and Ceze, Luis},
-  title     = {{FlashInfer}: Efficient and Customizable Attention Engine
-               for {LLM} Inference Serving},
-  booktitle = {Proceedings of Machine Learning and Systems (MLSys)},
-  year      = {2025}
+  author        = {Zihao Ye and Lequn Chen and Ruihang Lai and Wuwei Lin
+                   and Yineng Zhang and Stephanie Wang and Tianqi Chen
+                   and Baris Kasikci and Vinod Grover and Arvind Krishnamurthy
+                   and Luis Ceze},
+  title         = {{FlashInfer}: Efficient and Customizable Attention Engine
+                   for {LLM} Inference Serving},
+  booktitle     = {Proceedings of Machine Learning and Systems (MLSys)},
+  year          = {2025},
+  eprint        = {2501.01005},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.DC},
+  url           = {https://arxiv.org/abs/2501.01005}
 }
 
 % --- Foundational ---------------------------------------------------
 
 @inproceedings{vaswani2017attention,
-  author    = {Vaswani, Ashish and Shazeer, Noam and Parmar, Niki and
-               Uszkoreit, Jakob and Jones, Llion and Gomez, Aidan~N. and
-               Kaiser, {\L}ukasz and Polosukhin, Illia},
-  title     = {Attention Is All You Need},
-  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
-  year      = {2017}
+  author        = {Ashish Vaswani and Noam Shazeer and Niki Parmar and Jakob Uszkoreit
+                   and Llion Jones and Aidan N. Gomez and {\L}ukasz Kaiser
+                   and Illia Polosukhin},
+  title         = {Attention Is All You Need},
+  booktitle     = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year          = {2017},
+  eprint        = {1706.03762},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  url           = {https://arxiv.org/abs/1706.03762}
 }

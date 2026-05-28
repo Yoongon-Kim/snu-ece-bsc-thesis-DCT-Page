@@ -73,7 +73,7 @@ that budget follow each method's upstream recommendation.  Table
 \ref{tab:baseline-config} summarizes the per-method configuration.
 
 \paragraph{Cluster-based reference.}
-Multipole Attention~\cite{singh2025multipole} organizes keys into a
+Multipole Attention~\cite{hooper2025multipole} organizes keys into a
 $k$-means cluster tree rather than fixed-size pages, and its per-step
 work cannot be matched against the page-based budget in a one-to-one
 fashion.  Multipole typically achieves the highest accuracy across
@@ -83,9 +83,9 @@ exclude it from the main accuracy tables and instead devote
 against DCT-Page.  Multipole is run with a single-level
 configuration of $3.125\%$ leaf-cluster retention --- conceptually
 matched to DCT-Page's $P{=}32$ page granularity --- and a per-level
-token-budget threshold of $2{,}048$, with non-selected tokens
-replaced by their cluster centroid and re-clustering performed at
-every prefill window.
+token-budget threshold of $2{,}048$.  Clusters are formed at the end
+of prefill, and additional clusters are added during decode as the
+cache grows.
 
 \paragraph{Full-KV reference.}
 Every accuracy table additionally includes a Full-KV row, which is
