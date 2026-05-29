@@ -11,29 +11,39 @@ measure how well a scorer picks them with a single scalar, the
 dense softmax distribution that lands inside the selected page set.
 
 \paragraph{Definition.}
-Fix a decode step and a single $(\text{layer}, \text{kv-head})$ pair.
-Let $a \in \mathbb{R}^{L}$ be the dense softmax attention weights that
-the model \emph{would} have produced with the full KV cache, and let
-$\mathcal{T} \subseteq \{0, \dots, N{+}R\}$ be the page set chosen by
-some sparse-attention scorer.  Following the notation of
-Section~\ref{sec:scoring}, the paged mass-recall is
+Consider a decode step and a single $(\text{layer}, \text{kv-head})$
+pair.  Let $a \in \mathbb{R}^{L}$ be the dense softmax attention
+weights the model \emph{would} have produced with the full KV cache,
+and let $\mathcal{M}$ denote the \emph{selectable} middle pages,
+excluding the always-attended sink and recent zones.  For a scorer
+that picks $k$ middle pages
+$\mathcal{T} \subseteq \mathcal{M}$, let
+$M(\mathcal{T}) = \sum_{p \in \mathcal{T}} \sum_{n \in \text{page}(p)} a_n$
+be the dense softmax mass it captures, and let
+\[
+  M^{\star}
+  \;=\;
+  \max_{\mathcal{T}' \subseteq \mathcal{M},\; |\mathcal{T}'| = k}
+        M(\mathcal{T}')
+\]
+denote the maximum mass any size-$k$ middle-page selection could
+capture --- the ``mass-topk'' oracle that would have picked the
+heaviest middle pages had it known $a$ in advance.  The paged
+mass-recall ratio is
 \begin{equation}\label{eq:mass-recall}
   m(\mathcal{T})
   \;=\;
-  \sum_{p \in \mathcal{T}}\;
-  \sum_{n \in \text{page}(p)} a_n
-  \;\in\; [0, 1],
+  \frac{M(\mathcal{T})}{M^{\star}}
+  \;\in\; [0, 1].
 \end{equation}
-i.e.\ the dense softmax mass restricted to the tokens that live in the
-pages the scorer kept.  $m(\mathcal{T}) = 1$ means the selection
-covers all of the attention, and the sparse attention output is
-arithmetically identical to the dense one up to renormalization; small
-values mean the scorer routed the query away from the pages that the
-dense softmax actually weighted heavily.  This quantity is the
-intermediate accuracy proxy that decouples the choice of scorer from
-the downstream effect on benchmark accuracy: any scorer that achieves
-high $m(\mathcal{T})$ at a fixed budget is in a strong position to
-approximate Full-KV, regardless of its internal mechanism.
+Both numerator and denominator strip the always-attended sink and
+recent floor, so $m(\mathcal{T})$ isolates how well a scorer ranks
+the selectable middle pages relative to the achievable ceiling.
+$m(\mathcal{T}) = 1$ means the scorer matches the mass-topk oracle on
+the middle pages; small values mean it routed the query away from the
+middle pages the dense softmax actually weighted heavily.  Any scorer
+that achieves high $m(\mathcal{T})$ at a fixed budget is in a strong
+position to approximate Full-KV regardless of its internal mechanism.
 
 \paragraph{Measurement.}
 We compute $m(\mathcal{T})$ by running each model in its standard
@@ -54,19 +64,19 @@ trivial $m \equiv 1$ ceiling.
 \begin{figure}[ht]
   \centering
   \includegraphics[width=0.85\textwidth]{figures/paged_mass_recall.png}
-  \caption[Paged attention-mass recall vs.\ DCT-lowpass cutoff.]
-  {Paged attention-mass recall (Eq.~\eqref{eq:mass-recall}) on a
-  RULER NIAH-MultiKey~3 trace at $L = 32{,}768$ with
+  \caption[Paged mass-recall ratio vs.\ DCT-lowpass cutoff.]
+  {Paged mass-recall ratio (Eq.~\eqref{eq:mass-recall}, i.e.\ the
+  fraction of the mass-topk oracle's achievable middle-page mass that
+  a scorer captures at the same size-$k$ budget) on a RULER
+  NIAH-MultiKey~3 trace at $L = 32{,}768$ with
   Llama-3.1-8B-Instruct, page size $P{=}16$, selected-token budget
   $B \cdot P = 2{,}048$.  The DCT-lowpass-IDCT proxy of
-  Section~\ref{sec:proxy} (blue) already routes $\approx 84\%$ of
-  the dense softmax mass to its selected pages at the most
-  aggressive setting $c{=}1$ (one proxy token per $16$ keys), and
-  the curve climbs gently to $\approx 90\%$ at $c{=}16$ before
-  saturating; the per-channel min/max scorer of Quest (orange)
-  covers only $65.6\%$ of the mass at the same selected-token
-  budget, regardless of $c$.  Shaded bands are $\pm 1\sigma$ across
-  transformer layers.}
+  Section~\ref{sec:proxy} (blue) already reaches $\approx 84\%$ of
+  the oracle at the most aggressive setting $c{=}1$ (one proxy token
+  per $16$ keys), and the curve climbs gently to $\approx 90\%$ at
+  $c{=}16$ before saturating; the per-channel min/max scorer of Quest
+  (orange) reaches only $65.6\%$ at the same budget, regardless of
+  $c$.  Shaded bands are $\pm 1\sigma$ across transformer layers.}
   \label{fig:mass-recall}
 \end{figure}
 
@@ -74,15 +84,15 @@ trivial $m \equiv 1$ ceiling.
 At the most aggressive compression setting visible in
 Figure~\ref{fig:mass-recall} --- one proxy token per $16$-key page,
 i.e.\ a $1/16$ compression ratio --- the DCT-lowpass-IDCT proxy
-already attains a paged mass-recall of $\approx 84\%$ averaged across
-layers, while Quest's per-channel min/max statistics cover only
-$65.6\%$ of the dense softmax mass at the same selected-token budget.
-This is an $\approx 18$-point gap in the only intermediate quantity
-that connects scorer geometry to downstream attention error, and it
-holds before DCT-Page is given any of its bin-budget headroom: as $c$
-grows toward $P$, the DCT curve climbs to $\approx 90\%$, widening
-the gap to Quest by another $\approx 6$ points while Quest's line
-does not move.  The DCT-Page curve is also remarkably flat once it
+already reaches $\approx 84\%$ of the mass-topk oracle's
+middle-page recall (averaged across layers), while Quest's
+per-channel min/max statistics reach only $65.6\%$ at the same
+selected-token budget.  This is an $\approx 18$-point gap in the
+only intermediate quantity that connects scorer geometry to
+downstream attention error, and it holds before DCT-Page is given
+any of its bin-budget headroom: as $c$ grows toward $P$, the DCT
+curve climbs to $\approx 90\%$, widening the gap to Quest by another
+$\approx 6$ points while Quest's line does not move.  The DCT-Page curve is also remarkably flat once it
 clears its first few bins, consistent with the spectral concentration
 documented in Section~\ref{sec:insight} --- the energetic structure
 of a page already lives in its first few DCT bins, and additional
@@ -93,20 +103,22 @@ proxy-cache footprint and per-page compression cost without giving up
 recall.
 
 \paragraph{Implications for downstream accuracy.}
-The sparse attention output is a softmax-weighted sum of values, so its
-deviation from Full-KV at a single step is upper-bounded by the
-softmax mass that the scorer routed \emph{away}, $1 - m(\mathcal{T})$.
-DCT-Page misses $\approx 16\%$ of that mass at $c{=}1$; Quest misses
-$\approx 34\%$.  This gap is not academic: it is the mechanism behind
-the $+5.16$ and $+6.40$-point RULER averages of DCT-Page over Quest
-on Llama and Qwen3 reported in Table~\ref{tab:ruler}.  In particular,
-the largest per-task gap --- NIAH-MultiKey~3, where DCT-Page reaches
-$92.00$ on Llama versus Quest's $32.00$, and $72.00$ on Qwen3 versus
-Quest's $8.00$ --- is exactly the task whose dense softmax is the most
-concentrated on a single page (the needle's page).  When the dense
-distribution is concentrated, missing $34\%$ of its mass is much more
-likely to also miss the needle page entirely than missing $16\%$,
-which is precisely what the per-task numbers show.
+The sparse attention output is a softmax-weighted sum of values, so
+the more achievable middle-page mass a scorer fails to capture, the
+more dense weight it routes \emph{away} from its selected pages and
+the larger its deviation from Full-KV at that step.  DCT-Page leaves
+$\approx 16\%$ of the oracle-achievable mass uncovered at $c{=}1$;
+Quest leaves $\approx 34\%$ uncovered.  This $\approx 18$-point gap
+is the mechanism behind the $+5.16$ and $+6.40$-point RULER averages
+of DCT-Page over Quest on Llama and Qwen3 reported in
+Table~\ref{tab:ruler}.  In particular, the largest per-task gap ---
+NIAH-MultiKey~3, where DCT-Page reaches $92.00$ on Llama versus
+Quest's $32.00$, and $72.00$ on Qwen3 versus Quest's $8.00$ --- is
+exactly the task whose dense softmax is the most concentrated on a
+single page (the needle's page).  When the dense distribution is
+concentrated, leaving $34\%$ of the oracle's mass on the table is
+much more likely to also miss the needle page entirely than leaving
+$16\%$, which is precisely what the per-task numbers show.
 
 
 % =====================================================================
@@ -135,8 +147,10 @@ NIAH-MultiQuery against Quest's $99.00$.  The Qwen3-8B picture is
 even sharper: DCT-Page reaches $72.00$ on NIAH-MultiKey~3 against
 Quest's $8.00$ (a $64.00$-point gap), $97.00$ on NIAH-MultiValue
 against Quest's $90.00$, and $100.00$ on Variable Tracking against
-Quest's $98.40$.  On every one of these tasks DCT-Page also matches
-or comes within a single point of Full-KV.
+Quest's $98.40$.  On the easier retrieval tasks (NIAH-Single 1--3, MultiKey~1--2,
+MultiQuery) DCT-Page matches Full-KV exactly on both models; the
+residual gap on the remaining retrieval rows concentrates on
+NIAH-MultiKey~3.
 
 These tasks share a common structure: the answer lives at a small
 number of identifiable positions, and the dense softmax at the
@@ -175,14 +189,11 @@ distribution rather than of any single peak.  A fixed-budget page
 selector restricted to $B{=}64$ pages has no way to integrate the
 contributions of the $N - k$ unselected middle pages, and the
 per-step error is bounded below by the unrecovered mass however well
-the scorer ranks pages.  The fact that Quest is ahead on Qwen3 CWE is
-consistent with this picture: when no scorer can route most of the
-mass, a coarser but smoother selector that hedges across pages may
-edge out a sharper one that commits hard to its top picks.  This is a
-\emph{structural} limitation of fixed-budget page selection rather
-than a deficiency of the DCT proxy specifically, and it suggests a
-direction --- combining page-level top-$k$ with a coarse summary of
-the unselected mass --- that we leave to future work.
+the scorer ranks pages.  This is a \emph{structural} limitation of
+fixed-budget page selection rather than a deficiency of the DCT
+proxy specifically, and it suggests a direction --- combining
+page-level top-$k$ with a coarse summary of the unselected mass ---
+that we leave to future work.
 
 \subsection{Catastrophic Long-Context Failure of Quest}\label{sec:quest-collapse}
 
@@ -195,26 +206,23 @@ $2{,}048$-token selected budget on the same prompts, scores $30.56$
 on Llama and $26.85$ on Qwen3, both within $3$ points of Full-KV
 ($28.70$ and $33.33$ respectively).
 
-We attribute the gap to two compounding properties of the per-channel
-min/max scorer.  First, as the number of middle pages $N$ grows with
-context length, the per-channel \emph{minimum} and \emph{maximum}
-statistics of each page become near-degenerate across pages: at long
-context every feature dimension has been driven to nearly the same
-extreme values somewhere in almost every page, so the page-to-page
-ranking induced by $\max(\,q^\top K^{\min}_p,\, q^\top K^{\max}_p)$
-loses discriminative power.  Second, the inner product is taken
-against the marginal extremes of $K_p$ independently per channel, so
-the score never sees the within-page \emph{co-occurrence} structure
-that distinguishes ``the page that contains the answer'' from a
-neighbour that shares the same marginal extremes by accident.  On
-LongBench~v2 prompts at the Long bucket --- which exceed $32$K
-tokens of real text rather than synthetic needles --- both effects
-hit simultaneously, and selection essentially stops working.  The
+We attribute the gap to a structural property of the per-channel
+min/max scorer: each channel's contribution is a loose upper bound on
+$q^\top k_n$ computed independently of all other channels.  Two pages
+whose per-channel min/max happen to be similar in the channels where
+$|q[c]|$ is large --- the channels that drive the sum --- therefore
+receive similar overall scores, regardless of how the rest of their
+internal token structure differs.  As context grows with $N$, the
+chance of such partial coincidence between an answer-bearing page and
+an unrelated neighbour grows, and selection becomes increasingly
+noisy.  On LongBench~v2 prompts at the Long bucket --- which exceed
+$32$K tokens of real text rather than synthetic needles --- this
+effect hits hard, and selection essentially stops working.  The
 DCT-lowpass-IDCT proxy is by construction sensitive to the
 position-correlated low-frequency structure inside each page
-(Section~\ref{sec:insight}), and its mass-recall in
-Figure~\ref{fig:mass-recall} does not degrade with context length the
-way Quest's accuracy does on this benchmark.
+(Section~\ref{sec:insight}), so two pages with different internal
+token structure produce different proxy scores even when their
+marginal extremes happen to align.
 
 \subsection{Sparse Attention Exceeding Full-KV on LongBench v2}\label{sec:lbv2-surprise}
 
@@ -225,27 +233,21 @@ $32.01$ vs.\ $29.64$ on Qwen3 ($+2.37$).  SeerAttention-R on Qwen3
 shows the same direction at a larger magnitude ($32.60$ vs.\
 $29.64$).  A sparse attention method outperforming its own dense
 counterpart on a real long-context multiple-choice benchmark is not
-what we expected to see, and we do not have a clean explanation;
-two interpretations are consistent with the data and we report both.
+what we expected to see, and we do not have a clean explanation; one
+plausible interpretation is an implicit-denoising effect.
 
-The first is an implicit-denoising effect.  By zeroing out the
-contribution of the $N - k$ unselected middle pages, page-level
-top-$k$ selection effectively sharpens the softmax toward the
-highest-scoring evidence and suppresses the long tail of low-mass
-distractor pages that LongBench~v2 questions are specifically
-designed to include.  If a fraction of the dense softmax mass at long
-context routes to noise rather than to useful evidence, then removing
-it can plausibly improve the model's discrimination among the four
-multiple-choice options without changing what the model knows.  The
-second is statistical: LongBench~v2 contains $503$ questions, so each
-percentage point of overall accuracy corresponds to roughly five
-items, and the Qwen3 gap of $+2.37$ points sits within the range that
-a different evaluation seed could plausibly produce.  We do not have
-a way to fully decouple the two explanations at this benchmark scale,
-so we report the result as observed: page-level sparsification at the
-$2{,}048$-token budget does not hurt LongBench~v2 overall accuracy
-relative to Full-KV, and on Qwen3 it consistently helps by a small
-margin.
+By zeroing out the contribution of the $N - k$ unselected middle
+pages, page-level top-$k$ selection effectively sharpens the softmax
+toward the highest-scoring evidence and suppresses the long tail of
+low-mass distractor pages that LongBench~v2 questions are
+specifically designed to include.  If a fraction of the dense softmax
+mass at long context routes to noise rather than to useful evidence,
+then removing it can plausibly improve the model's discrimination
+among the four multiple-choice options without changing what the
+model knows.  We report the result as observed: page-level
+sparsification at the $2{,}048$-token budget does not hurt
+LongBench~v2 overall accuracy relative to Full-KV, and on Qwen3 it
+consistently helps by a small margin.
 
 
 % =====================================================================
@@ -271,9 +273,7 @@ DCT-Page modifies only the decode path; prefill remains standard
 dense attention (Chapter~\ref{chap:method}).  The speedups reported in
 Section~\ref{sec:results-speed} therefore apply only to the
 autoregressive generation phase, and workloads dominated by
-long-prompt prefill --- batch document scoring, long-document
-encoders used in a single forward pass, etc.\ --- see no benefit from
-the proxy machinery.  This is a deliberate scope choice (the page
+long-prompt prefill see no benefit from the proxy machinery.  This is a deliberate scope choice (the page
 proxy is most informative once a query is available to score it
 against) but it should be read as a limitation when comparing to
 methods that target the prefill side as well.

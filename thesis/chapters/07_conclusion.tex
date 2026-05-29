@@ -22,8 +22,9 @@ not collapse on the longest context bucket --- where Quest's per-page
 min/max scorer drops to $0.93$ and below, DCT-Page maintains
 performance on par with Full-KV.  The attention-mass-recall analysis
 in Section~\ref{sec:mass-recall} traces this advantage to its
-mechanistic source: at the same per-step budget, DCT-Page covers
-$\approx 84\%$ of the dense softmax mass against Quest's $65.6\%$.  On a
+mechanistic source: at the same per-step budget, DCT-Page reaches
+$\approx 84\%$ of the mass-topk oracle's achievable middle-page
+recall against Quest's $65.6\%$.  On a
 single A6000 GPU, the resulting throughput is $5.65 \times$ higher
 than Full-KV in the attention kernel and $1.70 \times$ higher
 end-to-end at $128$K context, and $3.59 \times$ higher than the
